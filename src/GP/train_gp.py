@@ -26,7 +26,7 @@ if __name__ == "__main__":
     th_data = data["th"]  # Theta a.k.a. angular position (35000,)
     u_data = data["u"]  # Control input (35000,)
 
-    na = 3  # Input lags
+    na = 2  # Input lags
     nb = 8  # Output lags
 
     # X_narx = (34998, 4), Y_narx = (34998,)

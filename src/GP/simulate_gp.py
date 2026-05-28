@@ -24,7 +24,7 @@ if __name__ == "__main__":
         exit()
 
     # Define input and output lag
-    na = 3  # Input lags
+    na = 2  # Input lags
     nb = 8  # Output lags
 
     # input & output buffer
@@ -64,7 +64,7 @@ if __name__ == "__main__":
             action = env.action_space.sample()
             u_input = float(action)
 
-            osa = False
+            osa = True
             if osa:
                 X_raw = np.concatenate([list(u_history), list(theta_history)]).reshape(
                     1, -1
