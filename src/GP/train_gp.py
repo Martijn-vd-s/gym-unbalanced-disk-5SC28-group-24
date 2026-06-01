@@ -78,13 +78,13 @@ if __name__ == "__main__":
 
     summary_data = {
         "Dataset Split": ["Training Set", "Validation Set", "Test Set"],
-        "RMS [rad]": [train_rms_rad, val_rms_rad, test_rms_rad],
-        "RMS [deg]": [
+        "RMSE [rad]": [train_rms_rad, val_rms_rad, test_rms_rad],
+        "RMSE [deg]": [
             train_rms_rad / (2 * np.pi) * 360,
             val_rms_rad / (2 * np.pi) * 360,
             test_rms_rad / (2 * np.pi) * 360,
         ],
-        "NRMS [%]": [
+        "NRMSE [%]": [
             train_rms_rad / np.std(y_train_raw) * 100,
             val_rms_rad / y_val_raw.std() * 100,
             test_rms_rad / y_test_raw.std() * 100,
