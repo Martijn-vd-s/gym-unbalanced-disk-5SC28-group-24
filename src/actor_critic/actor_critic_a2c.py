@@ -187,7 +187,7 @@ class A2CTrainer:
         hidden: int = 128,
         device: str = "cpu",
     ):
-        self.obs_dim = 3
+        self.obs_dim = 4
         self.n_envs = n_envs
         self.n_steps = n_steps
         self.gamma = gamma
@@ -566,11 +566,11 @@ if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
 
     sys.path.insert(0, os.getcwd())
-    from UnbalancedDisk_latest import UnbalancedDisk_sincos
+    from UnbalancedDisk import UnbalancedDisk_sincos
 
     ENV_CLS = UnbalancedDisk_sincos
     ENV_KWARGS = dict(
-        umax=3.0, dt=0.025, randomise=False
+        umax=3.0, dt=0.025, randomise=True
     )  # set randomise=True during training for robustness, False for final demo
 
     trainer = A2CTrainer(
@@ -587,8 +587,8 @@ if __name__ == "__main__":
         hidden=256,
     )
 
-    # trainer.train()
-    # trainer.save("actor_critic_final.pth")                  # save final too
+    trainer.train()
+    trainer.save("actor_critic_final.pth")                  # save final too
     trainer.load("actor_critic_best.pth")  # load best for demo
     trainer.plot_training("training_curves.png")
     ENV_KWARGS = dict(umax=3.0, dt=0.025, randomise=False)  # deterministic env for demo

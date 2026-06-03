@@ -90,23 +90,23 @@ class UnbalancedDisk(gym.Env):
         # )
 
         # worked
-        # self.reward_fun = lambda self: (
-        # (2 * np.cos(self.err(self))
-        # - 0.01 * self.omega**2
-        # + 10 * np.exp(-0.1*self.err(self)**2 - 0.0*self.omega**2)
-        # - 10.0 * np.exp(-0.05*(self.err(self)**2 - np.pi**2)**2 / (2 * (np.pi/4)**2))  # peaks at err=±π (bottom)
-        #         * np.exp(-0.1*self.omega**2 / (2 * 0.5**2))
-        #         # * (1 - np.exp(-self.err(self)**2 / (2 * 0.3**2)))
-        # # + 1 * np.exp(-self.err(self)**2-self.omega**2)
-        # )/ 12
-        # # - 50.0 * (abs(self.th) < np.pi / 2) * (abs(self.omega) < 0.5)
-        # )
+        self.reward_fun = lambda self: (
+        (2 * np.cos(self.err(self))
+        - 0.01 * self.omega**2
+        + 10 * np.exp(-0.1*self.err(self)**2 - 0.0*self.omega**2)
+        - 10.0 * np.exp(-0.05*(self.err(self)**2 - np.pi**2)**2 / (2 * (np.pi/4)**2))  # peaks at err= +- pi (bottom)
+                * np.exp(-0.1*self.omega**2 / (2 * 0.5**2))
+                # * (1 - np.exp(-self.err(self)**2 / (2 * 0.3**2)))
+        # + 1 * np.exp(-self.err(self)**2-self.omega**2)
+        )/ 12
+        # - 50.0 * (abs(self.th) < np.pi / 2) * (abs(self.omega) < 0.5)
+        )
 
         # self.reward_fun = lambda self: (
-        #     (2 * np.cos(self.err(self))                          # smooth -1→+1 guidance
+        #     (2 * np.cos(self.err(self))                          # smooth -1 -> +1 guidance
         #     - 0.01 * self.omega**2                               # speed penalty
         #     + 10 * np.exp(-0.1 * self.err(self)**2)              # sharp top bonus, no omega inside
-        #     - 5.0 * (1 - np.cos(self.err(self)))**2              # ← bottom penalty, EXACTLY 0 at err=0
+        #     - 5.0 * (1 - np.cos(self.err(self)))**2              # <- bottom penalty, EXACTLY 0 at err=0
         #             * np.exp(-self.omega**2 / (2 * 0.5**2))
         #     ) / 12
         # )
