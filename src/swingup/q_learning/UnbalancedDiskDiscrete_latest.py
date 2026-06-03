@@ -39,6 +39,7 @@ class UnbalancedDisk(gym.Env):
 
         self.action_space = spaces.Discrete(self.num_actions)
         self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
+        # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
         # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] #2
         # self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
         low = [-2*np.pi,-5] 
@@ -111,7 +112,7 @@ class UnbalancedDisk(gym.Env):
             # Straf voor zijn aan de onderkant (rond 0 rad), ongeacht th_ref
             - gaussian_2d(self_instance.err(self_instance.th, 0), self_instance.omega,  0, 0, 3, 3, 0.0, 40)
             + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.05)
-        
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.15)
 
 
             # Control input penalty
@@ -311,7 +312,8 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
 
     def get_obs(self):
         self.th_noise = self.th + np.random.normal(loc=0,scale=0.001) #do not edit
-        self.omega_noise = self.omega + np.random.normal(loc=0,scale=0.001) #do not edit
+        # self.omega_noise = self.omega + np.random.normal(loc=0,scale=0.001) #do not edit
+        self.omega_noise = self.omega + np.random.normal(loc=0,scale=0.01) #do not edit
         return np.array([np.sin(self.th_noise), np.cos(self.th_noise), self.omega_noise]) #change anything here
 
 if __name__ == '__main__':
