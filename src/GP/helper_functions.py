@@ -275,7 +275,6 @@ def gaussian_process(
         x_data, y_data, kernel=kernel, Z=selected_points
     )
 
-    # Put this in your training script right before model.optimize()
     model.Gaussian_noise.variance.constrain_bounded(1e-3, 1.0)
 
     # Optimize both kernel hyperparameters and inducing point locations
