@@ -89,18 +89,18 @@ class UnbalancedDisk(gym.Env):
         #     ) / 12
         # )
 
-        # worked
-        self.reward_fun = lambda self: (
-        (2 * np.cos(self.err(self))
-        - 0.01 * self.omega**2
-        + 10 * np.exp(-0.1*self.err(self)**2 - 0.0*self.omega**2)
-        - 10.0 * np.exp(-0.05*(self.err(self)**2 - np.pi**2)**2 / (2 * (np.pi/4)**2))  # peaks at err= +- pi (bottom)
-                * np.exp(-0.1*self.omega**2 / (2 * 0.5**2))
-                # * (1 - np.exp(-self.err(self)**2 / (2 * 0.3**2)))
-        # + 1 * np.exp(-self.err(self)**2-self.omega**2)
-        )/ 12
-        # - 50.0 * (abs(self.th) < np.pi / 2) * (abs(self.omega) < 0.5)
-        )
+        # # worked
+        # self.reward_fun = lambda self: (
+        # (2 * np.cos(self.err(self))
+        # - 0.01 * self.omega**2
+        # + 10 * np.exp(-0.1*self.err(self)**2 - 0.0*self.omega**2)
+        # - 10.0 * np.exp(-0.05*(self.err(self)**2 - np.pi**2)**2 / (2 * (np.pi/4)**2))  # peaks at err= +- pi (bottom)
+        #         * np.exp(-0.1*self.omega**2 / (2 * 0.5**2))
+        #         # * (1 - np.exp(-self.err(self)**2 / (2 * 0.3**2)))
+        # # + 1 * np.exp(-self.err(self)**2-self.omega**2)
+        # )/ 12
+        # # - 50.0 * (abs(self.th) < np.pi / 2) * (abs(self.omega) < 0.5)
+        # )
 
         # self.reward_fun = lambda self: (
         #     (2 * np.cos(self.err(self))                          # smooth -1 -> +1 guidance
@@ -112,47 +112,81 @@ class UnbalancedDisk(gym.Env):
         # )
 
         # self.reward_fun = lambda self: self._reward()
+        self.reward_fun = lambda self: self._reward()
 
         self.render_mode = render_mode
         self.viewer = None
         self.u = 0  # for visual
         self.reset()
 
-    def _reward(
-        self,
-        A=14.0,
-        sigma_err=np.pi,  # much wider: allow big angles
-        sigma_omega=3.0,
-        w_ridge=10.0,
-    ):  # stronger ridge
+    # def _reward(
+    #     self,
+    #     A=14.0,
+    #     sigma_err=np.pi,  # much wider: allow big angles
+    #     sigma_omega=3.0,
+    #     w_ridge=10.0,
+    # ):  # stronger ridge
+    #     err = self.err(self)
+    #     omega = self.omega
+
+    #     base = (
+    #         -0.01 * omega**2
+    #         + 10 * np.exp(-0.1 * err**2)
+    #         - 10.0
+    #         * np.exp(-0.05 * (err**2 - np.pi**2) ** 2 / (2 * (np.pi / 4) ** 2))
+    #         * np.exp(-0.1 * omega**2 / (2 * 0.5**2))
+    #         * (1 - np.exp(-(err**2) / (2 * 0.3**2)))
+    #         + 2 * np.exp(-2 * err**2 - 2 * omega**2)
+    #     )
+
+    #     # ridge term (symmetric magnitude)
+    #     omega_target = A * np.sin(err)
+    #     angle_term = np.exp(-(err**2) / (2 * sigma_err**2))
+    #     vel_term = np.exp(
+    #         -((np.abs(omega) - np.abs(omega_target)) ** 2) / (2 * sigma_omega**2)
+    #     )
+    #     ridge = angle_term * vel_term
+
+    #     reward = (base + w_ridge * ridge) / 12.0
+    #     return reward
+
+    def _reward(self):
+        # getthe error
         err = self.err(self)
-        omega = self.omega
-
-        base = (
-            -0.01 * omega**2
-            + 10 * np.exp(-0.1 * err**2)
-            - 10.0
-            * np.exp(-0.05 * (err**2 - np.pi**2) ** 2 / (2 * (np.pi / 4) ** 2))
-            * np.exp(-0.1 * omega**2 / (2 * 0.5**2))
-            * (1 - np.exp(-(err**2) / (2 * 0.3**2)))
-            + 2 * np.exp(-2 * err**2 - 2 * omega**2)
-        )
-
-        # ridge term (symmetric magnitude)
-        omega_target = A * np.sin(err)
-        angle_term = np.exp(-(err**2) / (2 * sigma_err**2))
-        vel_term = np.exp(
-            -((np.abs(omega) - np.abs(omega_target)) ** 2) / (2 * sigma_omega**2)
-        )
-        ridge = angle_term * vel_term
-
-        reward = (base + w_ridge * ridge) / 12.0
-        return reward
+        
+        # balance reward: Gaussian centered at err=0 (upright)
+        sigma_err = np.pi / 4.0
+        r_balance = np.exp(-(err**2) / (2 * sigma_err**2))
+        
+        # s shape swing-up reward
+        A = 12.0  # Peak target velocity
+        target_omega = A * np.sin(err / 2.0)
+        
+        # Gaussian reward for being close to the target swing-up velocity, scaled by how far we are from the upright position
+        sigma_swing = 2.0
+        r_swing = 0.5 * np.exp(-((self.omega - target_omega)**2) / (2 * sigma_swing**2))
+        
+        # control effort penalty
+        u_penalty = 0.05 * (self.u / self.umax)**2
+        
+        return r_balance + r_swing - u_penalty
 
     def step(self, action):
         # convert action to u
         terminated = False
-        self.u = action  # continuous
+
+        if False: #self.randomise:  # simulate delay for sim-to-real transfer
+            # add latest action to delay buffer
+            self.action_delay_buffer.append(action)
+            # pop the oldest action from the buffer to use as the delayed action
+            delayed_action = self.action_delay_buffer.popleft()
+        else:
+            delayed_action = action
+
+        # self.u = action  # continuous
+        self.u = delayed_action  # continuous with delay
+
+
         # self.u = [-3,-1,0,1,3][action] #discrate
         # self.u = [-3,3][action] #discrate
         ##### Start Do not edit ######
@@ -183,15 +217,15 @@ class UnbalancedDisk(gym.Env):
         ##### End do not edit   #####
 
         # accumulate total rotation
-        # self._th_accumulated += self.th - self.th_before
-        # self.th_before = self.th
+        self._th_accumulated += self.th - self.th_before
+        self.th_before = self.th
         ## terminate if spun more than 3π in total (reward hacking prevention)
-        # spin_limit = 3 * np.pi
-        # terminated = abs(self._th_accumulated) > spin_limit
+        spin_limit = 4 * np.pi
+        terminated = abs(self._th_accumulated) > spin_limit
         reward = self.reward_fun(self)
 
-        # if terminated:
-        #     reward -=  10  # heavy penalty for spinning too much
+        if terminated:
+            reward -=  10  # heavy penalty for spinning too much
 
         return self.get_obs(), reward, terminated, False, {}
 
@@ -201,6 +235,10 @@ class UnbalancedDisk(gym.Env):
         self.u = 0
         self._th_accumulated = 0.0
         self.th_before = 0.0
+        # filter to 0
+        self.omega_filtered = 0.0
+        # delay buffer for sim-to-real 
+        self.action_delay_buffer = deque([0.0])
 
         if self.randomise:
             self.omega0 = 11.339846957335382 * np.random.uniform(0.9, 1.1)
@@ -319,31 +357,36 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
         super(UnbalancedDisk_sincos, self).__init__(
             umax=umax, dt=dt, randomise=randomise
         )
-        low = [-1, -1, -40.0, -40.0]
-        high = [1, 1, 40.0, 40.0]
+        low = [-1, -1, -40.0, -40.0, -1]
+        high = [1, 1, 40.0, 40.0, 1]
         self.observation_space = spaces.Box(
             low=np.array(low, dtype=np.float32),
             high=np.array(high, dtype=np.float32),
-            shape=(4,),
+            shape=(5,),
         )  ### change shape here!!!
 
     def get_obs(self):
-        self.th_noise = self.th + np.random.normal(loc=0, scale=0.005)  # do not edit
+        self.th_noise = self.th + np.random.normal(loc=0, scale=0.001)  # do not edit
         self.omega_noise = self.omega + np.random.normal(
-            loc=0, scale=0.005
+            loc=0, scale=0.001
         )  # do not edit
 
         err_noise = ((self.th_noise - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
 
-        # dth = (self.th_noise - self.prev_th) / self.dt  # finite diff velocity
-        # self.prev_th = self.th_noise
+        extra_noise_scale = 1.0 if self.randomise else 0.0
+        sim_to_real_omega = self.omega_noise + np.random.normal(loc=0, scale=extra_noise_scale)
+
+        # simple low-pass filter to smooth out the noise in omega, making it more realistic for a physical sensor
+        alpha = 0.3
+        self.omega_filtered = (alpha * sim_to_real_omega) + ((1.0 - alpha) * self.omega_filtered)
 
         return np.array(
             [
                 np.sin(self.th_noise),
                 np.cos(self.th_noise),
-                self.omega_noise,
+                self.omega_filtered, # changed from self.omega_noise to self.omega_filtered for smoother sensor reading
                 (err_noise / np.pi),
+                (self.u / self.umax), # normalized control input, so the agent know the current action due to lag
             ]
         )  # change anything here
 
