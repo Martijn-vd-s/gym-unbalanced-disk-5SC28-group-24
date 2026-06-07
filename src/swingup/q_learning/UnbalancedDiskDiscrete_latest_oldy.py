@@ -1,3 +1,4 @@
+
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -61,40 +62,38 @@ class UnbalancedDisk(gym.Env):
             exponent = -0.5 * np.dot(diff, np.dot(inv_cov, diff.T))
             return scale * (1.0 / (2 * np.pi * np.sqrt(det_cov))) * np.exp(exponent)
 
-        # Parameters voor calculate_z (twee-blob S-curve formulering)
-        self.Z_L = 3        # l : exponent van de S-curve buiging
-        self.Z_F = -0.95    # f : schaal binnen de power-term
-        self.Z_C = 4.57     # c : basis-breedte van de S-curve
-        self.Z_W = 29.5     # w : breedte-groei weg van de top
-        self.Z_D = 1.91     # d : standaarddeviatie van de envelope
-        self.Z_G = 2.55     # g : amplitude van de envelope
+        # Nieuwe klasse attributen voor de parameters van calculate_z
+        self.A_VALUE = 3.25
+        self.B_VALUE = 0.7
+        self.J_VALUE = 2.0 # Gebruik 2.0 zoals in de reward_function_for_plot
 
         def _calculate_z_internal():
             """
-            Berekent z volgens de twee-blob S-curve + envelope formulering.
-            x = self.th (hoek), y = self.omega (hoeksnelheid).
-            Blob 1 ligt rond th = +pi, blob 2 rond th = -pi (de rechtopstaande stand).
+            Berekent de waarde van z op basis van de gegeven wiskundige formule,
+            gebruikmakend van de huidige th, omega en constante waarden van de klasse.
+            Ongepaste waarden worden op 0 gezet.
             """
-            x = self.th
-            y = self.omega
-            p = np.pi
+            # De hoofdberekening voor z
+            term1 = np.sin(self.omega - np.sin(self.th) * self.A_VALUE + 0.5 * np.pi)
+            term2 = (self.J_VALUE + np.sin(self.th - 0.5 * np.pi) * 2)
+            z = term1 * self.B_VALUE * term2
 
-            # --- Blob 1: rond th = +pi ---
-            base1 = self.Z_F * (-x + p)
-            power_term1 = np.sign(base1) * (np.abs(base1) ** self.Z_L)
-            s_curve1 = 3 * np.exp(-((y + power_term1)**2) / (self.Z_C + self.Z_W * (-x + p)**2))
-            envelope1 = self.Z_G * (1 / (self.Z_D * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((-x + p) / self.Z_D)**2)
-            blob1 = s_curve1 * envelope1
+            # Toepassen van de voorwaarden
+            # {sin(x) * a - pi <= y <= sin((x)) * a + pi}
+            condition_y_lower = np.sin(self.th) * self.A_VALUE - np.pi
+            condition_y_upper = np.sin(self.th) * self.A_VALUE + np.pi
+            
+            # {-j + 2 <= z}
+            condition_z_lower = -self.J_VALUE + 2
 
-            # --- Blob 2: rond th = -pi ---
-            base2 = self.Z_F * (-x - p)
-            power_term2 = np.sign(base2) * (np.abs(base2) ** self.Z_L)
-            s_curve2 = 3 * np.exp(-((y + power_term2)**2) / (self.Z_C + self.Z_W * (-x - p)**2))
-            envelope2 = self.Z_G * (1 / (self.Z_D * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((-x - p) / self.Z_D)**2)
-            blob2 = s_curve2 * envelope2
-
-            # Combineer de twee blobs
-            return np.maximum(blob1, blob2)
+            # Maak een masker voor de punten die niet aan de voorwaarden voldoen
+            # Als een punt niet aan de voorwaarden voldoet, wordt de waarde ervan 0
+            mask = (self.omega >= condition_y_lower) & \
+                   (self.omega <= condition_y_upper) & \
+                   (z >= condition_z_lower)
+            
+            # Geef 0 terug voor de punten die niet aan de voorwaarden voldoen
+            return np.where(mask, z, 0)
         
 
 
@@ -103,19 +102,24 @@ class UnbalancedDisk(gym.Env):
 
 
 
-        # DE REWARD FUNCTIE (komt overeen met reward_function_for_plot)
+        # DE NIEUWE REWARD FUNCTIE
         self.reward_fun = lambda self_instance: (
-            # Hoofdbeloning: piek op pi (rechtop) en 0 hoeksnelheid
-            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 1, 1, 0.0, 2)
-            # Straf voor de onderkant (rond 0 rad)
-            - gaussian_2d(self_instance.err(self_instance.th, 0),     self_instance.omega, 0, 0, 3, 3, 0.0, 40)
-            # Scherpe bonus-piek rond rechtop
+            # Hoofdbeloning: Piek op PI (bovenkant) en 0 hoeksnelheid
+
+
+
+            +gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega,  0, 0, 1, 1, 0.0, 2)
+            # Straf voor zijn aan de onderkant (rond 0 rad), ongeacht th_ref
+            - gaussian_2d(self_instance.err(self_instance.th, 0), self_instance.omega,  0, 0, 3, 3, 0.0, 40)
             + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.05)
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.15)
+
 
             # Control input penalty
             - 0.001 * self_instance.u**2
-
-            # Z-component (twee-blob S-curve)
+            
+            # TOEVOEGING van de getransformeerde Z_VALUES
+            # Aangepaste aanroep: self_instance.calculate_z_component() in plaats van self_instance.err.calculate_z_component()
             + self_instance.calculate_z_component()
         )
 
@@ -334,3 +338,4 @@ if __name__ == '__main__':
     plt.plot(Y[:,0])
     plt.title(f'max(Y[:,0])={max(Y[:,0])}')
     plt.show()
+    
