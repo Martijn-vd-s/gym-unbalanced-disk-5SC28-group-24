@@ -416,14 +416,17 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
         extra_noise_scale = 1.0 if self.randomise else 0.0
         sim_to_real_omega = self.omega_noise + np.random.normal(loc=0, scale=extra_noise_scale)
 
+        extra_noise_scale_th = 0.1 if self.randomise else 0.0
+        sim_to_real_th = self.th_noise + np.random.normal(loc=0, scale=extra_noise_scale_th)
+
         # simple low-pass filter to smooth out the noise in omega, making it more realistic for a physical sensor
         alpha = 0.3
         self.omega_filtered = (alpha * sim_to_real_omega) + ((1.0 - alpha) * self.omega_filtered)
 
         return np.array(
             [
-                np.sin(self.th_noise),
-                np.cos(self.th_noise),
+                np.sin(sim_to_real_th),
+                np.cos(sim_to_real_th),
                 self.omega_filtered, # changed from self.omega_noise to self.omega_filtered for smoother sensor reading
                 (err_noise / np.pi),
                 (self.u / self.umax), # normalized control input, so the agent know the current action due to lag
