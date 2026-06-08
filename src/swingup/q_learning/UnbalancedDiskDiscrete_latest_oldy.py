@@ -313,7 +313,7 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
     def get_obs(self):
         self.th_noise = self.th + np.random.normal(loc=0,scale=0.001) #do not edit
         # self.omega_noise = self.omega + np.random.normal(loc=0,scale=0.001) #do not edit
-        self.omega_noise = self.omega + np.random.normal(loc=0,scale=0.01) #do not edit
+        self.omega_noise = self.omega + np.random.normal(loc=0,scale=1.0) #do not edit
         return np.array([np.sin(self.th_noise), np.cos(self.th_noise), self.omega_noise]) #change anything here
 
 if __name__ == '__main__':
