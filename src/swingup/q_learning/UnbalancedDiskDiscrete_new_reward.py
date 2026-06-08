@@ -1,3 +1,4 @@
+
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -41,8 +42,14 @@ class UnbalancedDisk(gym.Env):
         # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
         # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] #2
         # self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
-        low = [-2*np.pi,-5] 
-        high = [2*np.pi,5]
+        # Observatie-grenzen:
+        #  - hoek: +-225 graden (5*pi/4). De top (+-180) ligt zo MET 45 graden
+        #    overshoot-marge aan BEIDE kanten binnen het bereik, zodat de agent
+        #    zichzelf kan terugzwaaien na een kleine overshoot (links en rechts).
+        #  - omega: +-30 rad/s. De swing-up vereist hoge snelheden (de reward-crest
+        #    wil ~+27 rad/s onderaan); +-5 maakte die compleet onwaarneembaar.
+        low  = [-5*np.pi/4, -30.]
+        high = [ 5*np.pi/4,  30.]
         self.observation_space = spaces.Box(low=np.array(low,dtype=np.float32),high=np.array(high,dtype=np.float32),shape=(2,))
 
 
@@ -62,12 +69,12 @@ class UnbalancedDisk(gym.Env):
             return scale * (1.0 / (2 * np.pi * np.sqrt(det_cov))) * np.exp(exponent)
 
         # Parameters voor calculate_z (twee-blob S-curve formulering)
-        self.Z_L = 3.8        # l : exponent van de S-curve buiging
-        self.Z_F = -0.7     # f : schaal binnen de power-term
-        self.Z_C = 5        # c : basis-breedte van de S-curve
-        self.Z_W = 7        # w : breedte-groei weg van de top
-        self.Z_D = 1.6      # d : standaarddeviatie van de envelope
-        self.Z_G = 2.16     # g : amplitude van de envelope
+        self.Z_L = 3        # l : exponent van de S-curve buiging
+        self.Z_F = -0.95    # f : schaal binnen de power-term
+        self.Z_C = 4.57     # c : basis-breedte van de S-curve
+        self.Z_W = 29.5     # w : breedte-groei weg van de top
+        self.Z_D = 1.91     # d : standaarddeviatie van de envelope
+        self.Z_G = 2.55     # g : amplitude van de envelope
 
         def _calculate_z_internal():
             """
@@ -106,11 +113,11 @@ class UnbalancedDisk(gym.Env):
         # DE REWARD FUNCTIE (komt overeen met reward_function_for_plot)
         self.reward_fun = lambda self_instance: (
             # Hoofdbeloning: piek op pi (rechtop) en 0 hoeksnelheid
-            # + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 1, 1, 0.0, 2)
-            # # Straf voor de onderkant (rond 0 rad)
-            # - gaussian_2d(self_instance.err(self_instance.th, 0),     self_instance.omega, 0, 0, 3, 3, 0.0, 40)
-            # # Scherpe bonus-piek rond rechtop
-            # + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.05)
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 1, 1, 0.0, 2)
+            # Straf voor de onderkant (rond 0 rad)
+            - gaussian_2d(self_instance.err(self_instance.th, 0),     self_instance.omega, 0, 0, 3, 3, 0.0, 40)
+            # Scherpe bonus-piek rond rechtop
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.05)
 
             # Control input penalty
             - 0.001 * self_instance.u**2
@@ -139,12 +146,12 @@ class UnbalancedDisk(gym.Env):
         self.reset()
 
     def termination(self, reward):
-        ## termination function for if the system has fallen
-        if abs(self.th) > 2 * np.pi:
-            # self.up = True
+        ## Termination als het systeem voorbij de herstel-marge is geslingerd:
+        ## voorbij +-225 graden (5*pi/4) kan de agent met max koppel niet meer
+        ## terugtrekken tegen de zwaartekracht in -> over de kop gevallen.
+        if abs(self.th) > 5 * np.pi / 4:
             done = True
             reward -= 50
-            # print(f'system is up: {self.up}')
 
         # if self.up == True and self.err > 1.6:
         #     # reward -= 100
@@ -334,3 +341,4 @@ if __name__ == '__main__':
     plt.plot(Y[:,0])
     plt.title(f'max(Y[:,0])={max(Y[:,0])}')
     plt.show()
+    
