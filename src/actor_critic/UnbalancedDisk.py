@@ -171,6 +171,46 @@ class UnbalancedDisk(gym.Env):
         
         return r_balance + r_swing - u_penalty
 
+    # def _reward(self):
+    #         err = self.err(self)
+    #         omega = self.omega
+            
+    #         # -----------------------------------------------------
+    #         # 1. The Physical Parameters
+    #         # -----------------------------------------------------
+    #         target_omega_bottom = 12.0  # Velocity needed at the bottom (err = pi)
+    #         shape_steepness = 4.6       # (Desmos 'm') 4.6 gives that boxy "S" shape
+    #         path_width = 0.67           # (Desmos 'b') Lower = wider, more forgiving path
+    #         max_reward = 0.6            # (Desmos 'a') Max reward for riding the path
+
+    #         # -----------------------------------------------------
+    #         # 2. Auto-Calculate Desmos Math to Fit Physics
+    #         # -----------------------------------------------------
+    #         # Calculate 'h' so the ridge perfectly hits the top balance point (0, 0)
+    #         h = -np.pi / (2.0 * path_width)
+            
+    #         # Calculate 'f' so the ridge perfectly hits your target bottom speed (pi, 12.0)
+    #         f_val = (np.pi ** (1.0 / shape_steepness)) / target_omega_bottom
+
+    #         # -----------------------------------------------------
+    #         # 3. The Desmos Equation
+    #         # -----------------------------------------------------
+    #         momentum_term = np.sign(omega) * (np.abs(omega * f_val) ** shape_steepness)
+    #         inner_term = path_width * ((err - h) + momentum_term)
+            
+    #         # Smoothly clip to [0, pi] so it fades to 0 reward off the path
+    #         inner_clipped = np.clip(inner_term, 0.0, np.pi)
+    #         r_surface = max_reward * np.sin(inner_clipped)
+            
+    #         # -----------------------------------------------------
+    #         # 4. Top Balance & Penalties
+    #         # -----------------------------------------------------
+    #         sigma_err = np.pi / 4.0
+    #         r_balance = np.exp(-(err**2) / (2 * sigma_err**2))
+    #         u_penalty = 0.05 * (self.u / self.umax)**2
+            
+    #         return r_balance + r_surface - u_penalty
+
     def step(self, action):
         # convert action to u
         terminated = False
