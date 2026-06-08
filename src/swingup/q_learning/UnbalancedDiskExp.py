@@ -163,7 +163,7 @@ class UnbalancedDisk_exp(gym.Env):
     def step(self, action):
         # convert discrete action to u
         self.u = self.discrete_action_map[action]
-        self.u = 0
+        # self.u = 0
 
         ##### Hardware interfacing ######
         self.u = np.clip(self.u, -self.umax, self.umax)
@@ -194,7 +194,7 @@ class UnbalancedDisk_exp(gym.Env):
         reward += self.bonus_region
         done, reward = self.termination(reward)
 
-        return obs, reward, False, False, {}
+        return obs, reward, done, False, {}
         
     def reset(self, seed=None):
         if seed is not None:
