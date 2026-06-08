@@ -42,8 +42,8 @@ class UnbalancedDisk(gym.Env):
         # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
         # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] #2
         # self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
-        low = [-2*np.pi,-10] 
-        high = [2*np.pi,10]
+        low = [-2*np.pi,-5] 
+        high = [2*np.pi,5]
         self.observation_space = spaces.Box(low=np.array(low,dtype=np.float32),high=np.array(high,dtype=np.float32),shape=(2,))
 
 
@@ -63,8 +63,8 @@ class UnbalancedDisk(gym.Env):
             return scale * (1.0 / (2 * np.pi * np.sqrt(det_cov))) * np.exp(exponent)
 
         # Nieuwe klasse attributen voor de parameters van calculate_z
-        self.A_VALUE = 7.25
-        self.B_VALUE = 0.6
+        self.A_VALUE = 3.25
+        self.B_VALUE = 0.7
         self.J_VALUE = 2.0 # Gebruik 2.0 zoals in de reward_function_for_plot
 
         def _calculate_z_internal():
