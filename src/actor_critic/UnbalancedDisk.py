@@ -151,7 +151,7 @@ class UnbalancedDisk(gym.Env):
     #     return reward
 
     def _reward(self):
-        # getthe error
+        # get the error
         err = self.err(self)
         
         # balance reward: Gaussian centered at err=0 (upright)
@@ -215,7 +215,7 @@ class UnbalancedDisk(gym.Env):
         # convert action to u
         terminated = False
 
-        if False: #self.randomise:  # simulate delay for sim-to-real transfer
+        if self.randomise:  # simulate delay for sim-to-real transfer
             # add latest action to delay buffer
             self.action_delay_buffer.append(action)
             # pop the oldest action from the buffer to use as the delayed action
@@ -413,7 +413,7 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
 
         err_noise = ((self.th_noise - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
 
-        extra_noise_scale = 1.0 if self.randomise else 0.0
+        extra_noise_scale = 1.5 if self.randomise else 0.0
         sim_to_real_omega = self.omega_noise + np.random.normal(loc=0, scale=extra_noise_scale)
 
         extra_noise_scale_th = 0.1 if self.randomise else 0.0

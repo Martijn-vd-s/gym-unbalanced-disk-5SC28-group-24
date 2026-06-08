@@ -145,7 +145,19 @@ class UnbalancedDisk_exp(gym.Env):
             pass
         obs = self.get_obs()
         reward = self.reward_fun(self)
-        return obs, reward, False, False, {}
+
+        # accumulate total rotation
+        self._th_accumulated += self.th - self.th_before
+        self.th_before = self.th
+        ## terminate if spun more than 3π in total (reward hacking prevention)
+        spin_limit = 4 * np.pi
+        terminated = abs(self._th_accumulated) > spin_limit
+        reward = self.reward_fun(self)
+
+        if terminated:
+            reward -=  10  # heavy penalty for spinning too much
+
+        return obs, reward, terminated, False, {}
 
     def reset(self, seed=None):
         theta_now = self.get_obs()[0]
@@ -159,6 +171,8 @@ class UnbalancedDisk_exp(gym.Env):
         time.sleep(0.1)
         self.init_encoder()
         self.omega_filtered = 0.0 # reset filter
+        self._th_accumulated = 0.0
+        self.th_before = self.get_obs()[0]
         return self.get_obs(), {}
 
     def get_obs(self):

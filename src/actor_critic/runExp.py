@@ -82,7 +82,7 @@ if __name__ == "__main__":
                 )
 
             env.render()
-            time.sleep(env.dt)
+            # time.sleep(0.022)
 
             if term or trunc:
                 obs, _ = env.reset()

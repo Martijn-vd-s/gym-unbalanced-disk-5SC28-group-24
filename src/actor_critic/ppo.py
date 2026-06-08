@@ -436,12 +436,12 @@ if __name__ == "__main__":
     trainer = PPOTrainer(
         env_cls=ENV_CLS,
         env_kwargs=ENV_KWARGS,
-        n_envs=4,        
+        n_envs=8,        
         n_steps=256,      
         ppo_epochs=10,    # Takes 10 training steps per data batch!
         lr_actor=1e-4,
         ent_coef=0.01,    
-        total_steps=500_000, 
+        total_steps=2_500_000, 
     )
 
     trainer.train()
