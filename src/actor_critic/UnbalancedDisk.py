@@ -19,12 +19,12 @@ class UnbalancedDisk(gym.Env):
 
     def __init__(self, umax=3.0, dt=0.025, render_mode="human", randomise=False):
         ############# start do not edit  ################
-        self.omega0 = 11.339846957335382
-        self.delta_th = 0
-        self.gamma = 1.3328339309394384
-        self.Ku = 28.136158407237073
-        self.Fc = 6.062729509386865
-        self.coulomb_omega = 0.001
+        # self.omega0 = 11.339846957335382
+        # self.delta_th = 0
+        # self.gamma = 1.3328339309394384
+        # self.Ku = 28.136158407237073
+        # self.Fc = 6.062729509386865
+        # self.coulomb_omega = 0.001
 
         # self.g = 9.80155078791343
         # self.J = 0.000244210523960356
@@ -33,6 +33,13 @@ class UnbalancedDisk(gym.Env):
         # self.M = 0.0761844495320390
         # self.tau = 0.397973147009910
         ############# end do not edit ###################
+        self.omega0 = 12.7908
+        self.delta_th = 0
+        self.gamma = 2.1904
+        self.Ku = 30.4070
+        self.Fc = 9.1626
+        self.coulomb_omega = 0.001
+
         self.randomise = randomise
         if randomise:  # <- enable during training, disable for real deployment
             self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
@@ -167,7 +174,7 @@ class UnbalancedDisk(gym.Env):
         r_swing = 0.5 * np.exp(-((self.omega - target_omega)**2) / (2 * sigma_swing**2))
         
         # control effort penalty
-        u_penalty = 0.05 * (self.u / self.umax)**2
+        u_penalty = 0.1 * (self.u / self.umax)**2
         
         return r_balance + r_swing - u_penalty
 
@@ -413,21 +420,21 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
 
         err_noise = ((self.th_noise - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
 
-        extra_noise_scale = 1.5 if self.randomise else 0.0
-        sim_to_real_omega = self.omega_noise + np.random.normal(loc=0, scale=extra_noise_scale)
+        extra_noise_scale = 1.0 if self.randomise else 0.0
+        self.sim_to_real_omega = self.omega_noise + np.random.normal(loc=0, scale=extra_noise_scale)
 
         extra_noise_scale_th = 0.1 if self.randomise else 0.0
         sim_to_real_th = self.th_noise + np.random.normal(loc=0, scale=extra_noise_scale_th)
 
         # simple low-pass filter to smooth out the noise in omega, making it more realistic for a physical sensor
-        alpha = 0.3
-        self.omega_filtered = (alpha * sim_to_real_omega) + ((1.0 - alpha) * self.omega_filtered)
+        # alpha = 0.3
+        # self.omega_filtered = (alpha * sim_to_real_omega) + ((1.0 - alpha) * self.omega_filtered)
 
         return np.array(
             [
                 np.sin(sim_to_real_th),
                 np.cos(sim_to_real_th),
-                self.omega_filtered, # changed from self.omega_noise to self.omega_filtered for smoother sensor reading
+                self.sim_to_real_omega, # changed from self.omega_noise to self.omega_filtered for smoother sensor reading
                 (err_noise / np.pi),
                 (self.u / self.umax), # normalized control input, so the agent know the current action due to lag
             ]

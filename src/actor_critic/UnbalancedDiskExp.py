@@ -329,13 +329,13 @@ class UnbalancedDisk_exp_sincos(UnbalancedDisk_exp):
         err = ((self.th - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
         
         # Apply the low-pass filter to smooth out noise in omega
-        alpha = 0.3
-        self.omega_filtered = (alpha * self.omega) + ((1.0 - alpha) * self.omega_filtered)
+        # alpha = 0.3
+        # self.omega_filtered = (alpha * self.omega) + ((1.0 - alpha) * self.omega_filtered)
 
         return np.array([
             np.sin(self.th), 
             np.cos(self.th), 
-            self.omega_filtered,
+            (self.omega + 1.874),
             (err / np.pi),
             (self.u / self.umax)
         ])
