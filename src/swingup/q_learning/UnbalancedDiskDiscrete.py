@@ -34,14 +34,14 @@ class UnbalancedDisk(gym.Env):
 
         self.umax = umax
         self.dt = dt #time step
-        self.num_actions = 9
+        self.num_actions = 11
         self.render_mode = render_mode
 
         self.action_space = spaces.Discrete(self.num_actions)
         # self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
         # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
         # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] #2
-        self.discrete_action_map  = [-3,  -1.8, -0.7,  -0.2, 0,  0.2, 0.7, 1.8, 3] #3
+        self.discrete_action_map  = [-3,  -2.2, -1.5, -0.7,  -0.2, 0,  0.2, 0.7, 1.5, 2.2, 3] #3
         low = [-2*np.pi,-5] 
         high = [2*np.pi,5]
         self.observation_space = spaces.Box(low=np.array(low,dtype=np.float32),high=np.array(high,dtype=np.float32),shape=(2,))
@@ -112,7 +112,7 @@ class UnbalancedDisk(gym.Env):
             # Straf voor zijn aan de onderkant (rond 0 rad), ongeacht th_ref
             - gaussian_2d(self_instance.err(self_instance.th, 0), self_instance.omega,  0, 0, 3, 3, 0.0, 40)
             + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.05)
-            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.15)
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.25)
 
 
             # Control input penalty
