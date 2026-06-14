@@ -34,14 +34,17 @@ class UnbalancedDisk(gym.Env):
 
         self.umax = umax
         self.dt = dt #time step
-        self.num_actions = 7
+        self.num_actions = 9
         self.render_mode = render_mode
 
         self.action_space = spaces.Discrete(self.num_actions)
-        self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
+        # Fijne resolutie rond 0 voor zacht vasthouden bij de top (vult het gat tussen 0 en 0.5).
+        # holdhoek per koppel (nieuwe params): 0.15->1.6deg, 0.35->3.7deg, 0.7->7.5deg, 1.8->20deg, 3->34deg
+        # self.discrete_action_map  = [-3, -1.8, -0.7, -0.35, -0.15, 0, 0.15, 0.35, 0.7, 1.8, 3] #fine
+        # self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
         # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
         # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] #2
-        # self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
+        self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
         low = [-(5/4)*np.pi,-5] 
         high = [(5/4)*np.pi,5]
         self.observation_space = spaces.Box(low=np.array(low,dtype=np.float32),high=np.array(high,dtype=np.float32),shape=(2,))
@@ -102,6 +105,13 @@ class UnbalancedDisk(gym.Env):
 
 
 
+        # --- Sim-to-real shaping: zacht en glad sturen vlak bij de top ---
+        self.TOP_GATE_SIGMA = 0.3   # rad (~17 deg): breedte van de "bij de top" zone
+        self.W_U_TOP = 0.10         # extra straf op u^2 vlak bij de top
+        self.W_RATE_TOP = 0.01      # straf op snelle koppelwisselingen (anti-chatter) bij de top
+        # gate ~1 bij de top, ~0 elders -> shaping alleen waar fijn balanceren nodig is
+        self.top_gate = lambda: np.exp(-0.5 * (self.err(self.th, np.pi) / self.TOP_GATE_SIGMA) ** 2)
+
         # DE NIEUWE REWARD FUNCTIE
         self.reward_fun = lambda self_instance: (
             # Hoofdbeloning: Piek op PI (bovenkant) en 0 hoeksnelheid
@@ -115,9 +125,11 @@ class UnbalancedDisk(gym.Env):
             + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.004)
 
 
-            # Control input penalty
-            - 0.01 * self_instance.u**2
-            
+            # Control input penalty: klein tijdens swing-up, groot bij de top (top_gate)
+            - (0.01 + self_instance.W_U_TOP * self_instance.top_gate()) * self_instance.u**2
+            # Action-rate penalty (anti-chatter), alleen bij de top zodat pompen tijdens swing-up vrij blijft
+            - self_instance.W_RATE_TOP * self_instance.top_gate() * (self_instance.u - self_instance.prev_u)**2
+
             # TOEVOEGING van de getransformeerde Z_VALUES
             # Aangepaste aanroep: self_instance.calculate_z_component() in plaats van self_instance.err.calculate_z_component()
             + self_instance.calculate_z_component()
@@ -161,6 +173,7 @@ class UnbalancedDisk(gym.Env):
         return done, reward
 
     def step(self, action):
+        self.prev_u = self.u  # vorige toegepaste koppel -> voor action-rate penalty
         self.u = self.discrete_action_map[action]
 
         ##### Start Do not edit ######
@@ -202,6 +215,7 @@ class UnbalancedDisk(gym.Env):
         self.th = self.set_th if self.set_th is not None else np.random.uniform(-np.pi/4, np.pi/4)
         self.omega = self.set_omega if self.set_omega is not None else np.random.uniform(-1.0, 1.0)
         self.u = 0
+        self.prev_u = 0
 
         self.step_t = 0
         self.balancing_ticker = 0
