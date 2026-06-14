@@ -15,57 +15,35 @@ class UnbalancedDisk(gym.Env):
                     |
                     0  = starting location
     '''
-    def __init__(self, umax=3., dt = 0.025, render_mode='human', randomise=True):
-        # ############ start do not edit  ################
-        # self.omega0 = 11.339846957335382
-        # self.delta_th = 0
-        # self.gamma = 1.3328339309394384
-        # self.Ku = 28.136158407237073
-        # self.Fc = 6.062729509386865
-        # self.coulomb_omega = 0.001
-
-        # # self.g = 9.80155078791343
-        # # self.J = 0.000244210523960356
-        # # self.Km = 10.5081817407479
-        # # self.I = 0.0410772235841364
-        # # self.M = 0.0761844495320390
-        # # self.tau = 0.397973147009910
-        # ############ end do not edit ###################
-
-
-        #maartijn: these are the parameters that are used in the reward function, they are not the same as the ones above
-        self.omega0 = 12.7908
+    def __init__(self, umax=3., dt = 0.025, render_mode='human'):
+        ############# start do not edit  ################
+        self.omega0 = 11.339846957335382
         self.delta_th = 0
-        self.gamma = 2.1904
-        self.Ku = 30.4070
-        self.Fc = 9.1626
+        self.gamma = 1.3328339309394384
+        self.Ku = 28.136158407237073
+        self.Fc = 6.062729509386865
         self.coulomb_omega = 0.001
 
-        self.randomise = randomise
-        if randomise:  # <- enable during training, disable for real deployment
-            self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
-            self.gamma *= np.random.uniform(0.8, 1.2)  # 20%
-            self.Ku *= np.random.uniform(0.9, 1.1)
-            self.Fc *= np.random.uniform(0.8, 1.2)
-
-
-        #########################new martijn part for reward function########################
-
-
-
+        # self.g = 9.80155078791343
+        # self.J = 0.000244210523960356
+        # self.Km = 10.5081817407479
+        # self.I = 0.0410772235841364
+        # self.M = 0.0761844495320390
+        # self.tau = 0.397973147009910
+        ############# end do not edit ###################
 
         self.umax = umax
         self.dt = dt #time step
-        self.num_actions = 11
+        self.num_actions = 7
         self.render_mode = render_mode
 
         self.action_space = spaces.Discrete(self.num_actions)
-        # self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
+        self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
         # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
         # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] #2
-        self.discrete_action_map  = [-3,  -2.2, -1.5, -0.7,  -0.2, 0,  0.2, 0.7, 1.5, 2.2, 3] #3
-        low = [-2*np.pi,-5] 
-        high = [2*np.pi,5]
+        # self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
+        low = [-(5/4)*np.pi,-5] 
+        high = [(5/4)*np.pi,5]
         self.observation_space = spaces.Box(low=np.array(low,dtype=np.float32),high=np.array(high,dtype=np.float32),shape=(2,))
 
 
@@ -134,11 +112,11 @@ class UnbalancedDisk(gym.Env):
             # Straf voor zijn aan de onderkant (rond 0 rad), ongeacht th_ref
             - gaussian_2d(self_instance.err(self_instance.th, 0), self_instance.omega,  0, 0, 3, 3, 0.0, 40)
             + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.05)
-            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.25)
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.004)
 
 
             # Control input penalty
-            - 1.0 * self_instance.u**4
+            - 0.01 * self_instance.u**2
             
             # TOEVOEGING van de getransformeerde Z_VALUES
             # Aangepaste aanroep: self_instance.calculate_z_component() in plaats van self_instance.err.calculate_z_component()
@@ -231,49 +209,10 @@ class UnbalancedDisk(gym.Env):
         self.bonus_region = 0
         return self.get_obs(), {}
 
-
-    ##########################old get_obs function, replaced by new one below########################
-    # def get_obs(self):
+    def get_obs(self):
         self.th_noise = self.th + np.random.normal(loc=0,scale=0.001) #do not edit
         self.omega_noise = self.omega + np.random.normal(loc=0,scale=0.001) #do not edit
         return np.array([self.th_noise, self.omega_noise])
-    ####################### 
-
-    #####################################MARTIJN PART CHECKING###############################
-    def get_obs(self):
-        self.th_noise = self.th + np.random.normal(loc=0, scale=0.001)  # do not edit
-        self.omega_noise = self.omega + np.random.normal(
-            loc=0, scale=0.001
-        )  # do not edit
-
-        err_noise = ((self.th_noise - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
-
-        extra_noise_scale = 1.0 if self.randomise else 0.0
-        self.sim_to_real_omega = self.omega_noise + np.random.normal(loc=0, scale=extra_noise_scale)
-
-        extra_noise_scale_th = 0.1 if self.randomise else 0.0
-        sim_to_real_th = self.th_noise + np.random.normal(loc=0, scale=extra_noise_scale_th)
-
-        # simple low-pass filter to smooth out the noise in omega, making it more realistic for a physical sensor
-        # alpha = 0.3
-        # self.omega_filtered = (alpha * sim_to_real_omega) + ((1.0 - alpha) * self.omega_filtered)
-
-        return np.array(
-            [
-                np.sin(sim_to_real_th),
-                np.cos(sim_to_real_th),
-                self.sim_to_real_omega, # changed from self.omega_noise to self.omega_filtered for smoother sensor reading
-                (err_noise / np.pi),
-                (self.u / self.umax), # normalized control input
-            ]
-        )  # change anything here
-    ##########################################Martijn part checking
-
-
-
-
-
-    
 
     def render(self):
         import pygame
@@ -374,7 +313,7 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
     def get_obs(self):
         self.th_noise = self.th + np.random.normal(loc=0,scale=0.001) #do not edit
         # self.omega_noise = self.omega + np.random.normal(loc=0,scale=0.001) #do not edit
-        self.omega_noise = self.omega + np.random.normal(loc=0,scale=1.00) #do not edit
+        self.omega_noise = self.omega + np.random.normal(loc=0,scale=1.0) #do not edit
         return np.array([np.sin(self.th_noise), np.cos(self.th_noise), self.omega_noise]) #change anything here
 
 if __name__ == '__main__':
