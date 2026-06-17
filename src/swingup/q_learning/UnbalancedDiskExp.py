@@ -43,15 +43,13 @@ class UnbalancedDisk_exp(gym.Env):
         self.dt = dt
 
         ### Gym things
-        self.num_actions = 7
+        self.num_actions = 8
         self.action_space = spaces.Discrete(self.num_actions)
-        # self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3]
-        # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] 
-        # self.discrete_action_map  = [-3,  -2, -1,  -0.6 , 0,  0.6, 1, 2, 3]
-        self.discrete_action_map  = [-3, -1.8,  -0.7 ,  0,  0.7, 1.8,  3] #1
-        
-        low = [-2*np.pi, -5] 
-        high = [2*np.pi, 5]
+        # MOET exact gelijk zijn aan UnbalancedDiskDiscrete.py (training) -> anders mappen indices op verkeerde voltages
+        self.discrete_action_map  = [-3,  -2.2, -1.2,  -0.6 ,  0.6, 1.2, 2.2, 3]
+
+        low = [-(5/4)*np.pi, -5]   # MOET gelijk zijn aan training-range
+        high = [(5/4)*np.pi, 5]
         self.observation_space = spaces.Box(low=np.array(low, dtype=np.float32), high=np.array(high, dtype=np.float32), shape=(2,))
 
         # Custom error function
