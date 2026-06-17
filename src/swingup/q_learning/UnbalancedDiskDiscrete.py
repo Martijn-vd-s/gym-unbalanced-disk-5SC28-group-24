@@ -16,13 +16,13 @@ class UnbalancedDisk(gym.Env):
                     0  = starting location
     '''
     def __init__(self, umax=3., dt = 0.025, render_mode='human'):
-        ############# start do not edit  ################
-        self.omega0 = 11.339846957335382
-        self.delta_th = 0
-        self.gamma = 1.3328339309394384
-        self.Ku = 28.136158407237073
-        self.Fc = 6.062729509386865
-        self.coulomb_omega = 0.001
+        # ############# start do not edit  ################
+        # self.omega0 = 11.339846957335382
+        # self.delta_th = 0
+        # self.gamma = 1.3328339309394384
+        # self.Ku = 28.136158407237073
+        # self.Fc = 6.062729509386865
+        # self.coulomb_omega = 0.001
 
         # # self.g = 9.80155078791343
         # # self.J = 0.000244210523960356
@@ -31,12 +31,12 @@ class UnbalancedDisk(gym.Env):
         # # self.M = 0.0761844495320390
         # # self.tau = 0.397973147009910
         # ############# end do not edit ###################
-        # self.omega0 = 12.7908
-        # self.delta_th = 0
-        # self.gamma = 2.1904
-        # self.Ku = 30.4070
-        # self.Fc = 9.1626
-        # self.coulomb_omega = 0.001
+        self.omega0 = 12.7908
+        self.delta_th = 0
+        self.gamma = 2.1904
+        self.Ku = 30.4070
+        self.Fc = 9.1626
+        self.coulomb_omega = 0.001
 
 
 
@@ -114,9 +114,9 @@ class UnbalancedDisk(gym.Env):
 
 
         # --- Sim-to-real shaping: zacht en glad sturen vlak bij de top ---
-        self.TOP_GATE_SIGMA = 0.3   # rad (~17 deg): breedte van de "bij de top" zone
-        self.W_U_TOP = 0.10         # extra straf op u^2 vlak bij de top
-        self.W_RATE_TOP = 0.01      # straf op snelle koppelwisselingen (anti-chatter) bij de top
+        self.TOP_GATE_SIGMA = 0.45  # rad (~26 deg): breedte van de "bij de top" zone (breder -> eerder zacht)
+        self.W_U_TOP = 0.40         # extra straf op u^2 vlak bij de top (hoger -> minder voltage aan de top)
+        self.W_RATE_TOP = 0.03      # straf op snelle koppelwisselingen (anti-chatter) bij de top
         # gate ~1 bij de top, ~0 elders -> shaping alleen waar fijn balanceren nodig is
         self.top_gate = lambda: np.exp(-0.5 * (self.err(self.th, np.pi) / self.TOP_GATE_SIGMA) ** 2)
 
