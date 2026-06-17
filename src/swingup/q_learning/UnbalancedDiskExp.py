@@ -43,10 +43,11 @@ class UnbalancedDisk_exp(gym.Env):
         self.dt = dt
 
         ### Gym things
-        self.num_actions = 7
+        self.num_actions = 9
         self.action_space = spaces.Discrete(self.num_actions)
         # self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3]
-        self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] 
+        # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] 
+        self.discrete_action_map  = [-3,  -2, -1,  -0.6 , 0,  0.6, 1, 2, 3]
         
         low = [-2*np.pi, -5] 
         high = [2*np.pi, 5]
