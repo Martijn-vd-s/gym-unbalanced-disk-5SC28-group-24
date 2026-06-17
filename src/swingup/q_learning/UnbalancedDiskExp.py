@@ -352,7 +352,13 @@ class UnbalancedDisk_exp_sincos(UnbalancedDisk_exp):
 
     def get_obs(self):
         super(UnbalancedDisk_exp_sincos, self).get_obs()
-        return np.array([np.sin(self.th), np.cos(self.th), self.omega])
+        return np.array([
+            np.sin(self.th), 
+            np.cos(self.th), 
+            (self.omega + 1.874),
+            # (err / np.pi),
+            # (self.u / self.umax)
+        ])
 
 if __name__ == '__main__':
     # Add a simple physical test sequence
