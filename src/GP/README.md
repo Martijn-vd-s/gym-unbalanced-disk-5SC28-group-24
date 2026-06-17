@@ -6,14 +6,17 @@ Gaussian Processes (GP) are a nonparametric supervised learning method used to e
 ```
 GP/
 ├── __pycache__/
-├── csv_files/                      # CSV files containing training results
+├── csv_files/                                      # CSV files containing training results
 ├── images/                         
 ├── __init__.py
-├── helper_functions.py             # Contains helper functions
-├── hyperparameter_search.py        # Runs a grid search for hyperparameters
+├── hidden_prediction.py                            # Used to fill the hidden-test csv files
+├── hidden-test-prediciton-submission-file.csv       
+├── hidden-test-simulation-submission-file.csv      
+├── helper_functions.py                             # Contains helper functions
+├── hyperparameter_search.py                        # Runs a grid search for hyperparameters
 ├── README.md
-├── scaler_params.npz               # Contains data normalization parameters
-├── simulate_gp.py                  # Runs one-step-ahead and free run simulation prediction
-├── sparse_gp_model.pkl             # Contains the last trained sparse gaussian process
-└── train_gp.py                     # Trains the sparse gaussian process
+├── scaler_params.npz                               # Contains data normalization parameters
+├── simulate_gp.py                                  # Runs one-step-ahead and free run simulation prediction
+├── sparse_gp_model.pkl                             # Contains the last trained sparse gaussian process
+└── train_gp.py                                     # Trains the sparse gaussian process
 ```
