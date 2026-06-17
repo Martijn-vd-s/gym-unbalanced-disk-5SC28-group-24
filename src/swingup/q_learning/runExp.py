@@ -68,7 +68,7 @@ if __name__ == "__main__":
     env_base = ENV_CLS(**ENV_KWARGS)
     
     # 2. Wikkel de environment om de observaties te discretiseren (precies zoals in je Jupyter Notebook)
-    nvec_angle = 360
+    nvec_angle = 120
     nvec_rps = 50
     env = Discretize_obs(env_base, nvec=[nvec_angle, nvec_rps])
     
@@ -129,7 +129,7 @@ if __name__ == "__main__":
             )
 
         env.render()
-        time.sleep(env.unwrapped.dt)
+        # time.sleep(env.unwrapped.dt)
 
         if term or trunc:
             obs, _ = env.reset()
