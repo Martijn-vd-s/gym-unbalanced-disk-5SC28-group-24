@@ -106,10 +106,10 @@ class UnbalancedDisk(gym.Env):
         rate_penalty = 0.02 * (u_norm - prev_u_norm)**2   # penalty for switching 
         self._prev_u_norm = u_norm
 
-        # sigma_track = np.deg2rad(10.0)
-        # r_track = np.exp(-(err**2) / (2 * sigma_track**2))
+        sigma_track = np.deg2rad(6.0)
+        r_track = np.exp(-(err**2) / (2 * sigma_track**2))
         
-        return r_balance + r_swing - u_penalty - rate_penalty #+ r_track
+        return r_balance + r_swing - u_penalty - rate_penalty + r_track
         # return r_balance + r_swing - u_penalty
 
 
