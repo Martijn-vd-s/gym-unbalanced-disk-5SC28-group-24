@@ -24,27 +24,35 @@ class UnbalancedDisk(gym.Env):
         self.Fc = 6.062729509386865
         self.coulomb_omega = 0.001
 
-        # self.g = 9.80155078791343
-        # self.J = 0.000244210523960356
-        # self.Km = 10.5081817407479
-        # self.I = 0.0410772235841364
-        # self.M = 0.0761844495320390
-        # self.tau = 0.397973147009910
-        ############# end do not edit ###################
+        # # self.g = 9.80155078791343
+        # # self.J = 0.000244210523960356
+        # # self.Km = 10.5081817407479
+        # # self.I = 0.0410772235841364
+        # # self.M = 0.0761844495320390
+        # # self.tau = 0.397973147009910
+        # ############# end do not edit ###################
+        # self.omega0 = 12.7908
+        # self.delta_th = 0
+        # self.gamma = 2.1904
+        # self.Ku = 30.4070
+        # self.Fc = 9.1626
+        # self.coulomb_omega = 0.001
+
+
 
         self.umax = umax
         self.dt = dt #time step
-        self.num_actions = 9
+        self.num_actions = 7
         self.render_mode = render_mode
 
         self.action_space = spaces.Discrete(self.num_actions)
         # Fijne resolutie rond 0 voor zacht vasthouden bij de top (vult het gat tussen 0 en 0.5).
         # holdhoek per koppel (nieuwe params): 0.15->1.6deg, 0.35->3.7deg, 0.7->7.5deg, 1.8->20deg, 3->34deg
         # self.discrete_action_map  = [-3, -1.8, -0.7, -0.35, -0.15, 0, 0.15, 0.35, 0.7, 1.8, 3] #fine
-        # self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
+        self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
         # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
         # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] #2
-        self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
+        # self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
         low = [-(5/4)*np.pi,-5] 
         high = [(5/4)*np.pi,5]
         self.observation_space = spaces.Box(low=np.array(low,dtype=np.float32),high=np.array(high,dtype=np.float32),shape=(2,))
@@ -212,8 +220,8 @@ class UnbalancedDisk(gym.Env):
          
     def reset(self,seed=None):
         super().reset(seed=seed)
-        self.th = self.set_th if self.set_th is not None else np.random.uniform(-np.pi/4, np.pi/4)
-        self.omega = self.set_omega if self.set_omega is not None else np.random.uniform(-1.0, 1.0)
+        self.th = self.set_th if self.set_th is not None else np.random.uniform(-np.pi/2, np.pi/2)
+        self.omega = self.set_omega if self.set_omega is not None else np.random.uniform(-2.0, 2.0)
         self.u = 0
         self.prev_u = 0
 
