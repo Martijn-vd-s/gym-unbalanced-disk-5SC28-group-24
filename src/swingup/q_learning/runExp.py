@@ -12,34 +12,28 @@ from UnbalancedDiskExp import UnbalancedDisk_exp
 
 class Discretize_obs(gym.Wrapper):
     """
-    Wrapper om de continue observatieruimte te discretiseren naar MultiDiscrete.
-    Dit moet exact overeenkomen met wat er tijdens het trainen is gebruikt!
+    MOET exact gelijk zijn aan Discretize_obs in de training-notebook!
+    Hoek: NIET-uniform -> fijn vlak bij de top (phi=0), grof bij de bodem. Snelheid: uniform.
+    nvec=[<genegeerd voor hoek>, n_omega].  fine_w / fine_res / coarse_res bepalen de fijnheid.
     """
-    def __init__(self, env, nvec):
+    def __init__(self, env, nvec, fine_w=0.40, fine_res=0.025, coarse_res=0.10):
         super(Discretize_obs, self).__init__(env)
-        original_obs_space = env.observation_space
-        
-        if isinstance(original_obs_space, spaces.Box):
-            original_obs_shape = original_obs_space.shape
-            self.olow = original_obs_space.low
-            self.ohigh = original_obs_space.high
-        elif isinstance(original_obs_space, spaces.MultiDiscrete):
-            original_obs_shape = original_obs_space.nvec.shape
-            self.olow = np.zeros_like(original_obs_space.nvec, dtype=np.float32)
-            self.ohigh = (original_obs_space.nvec - 1).astype(np.float32)
-        else:
-            raise TypeError("Onondersteund observatieruimte type.")
-
-        self.nvec_array = np.array(nvec, dtype=int)
-        self.observation_space = gym.spaces.MultiDiscrete(self.nvec_array.flatten())
-        self.range_obs = self.ohigh - self.olow
-        self.range_obs[self.range_obs == 0] = 1.0
+        o = env.observation_space
+        self.omega_low  = float(o.low[1]);  self.omega_high = float(o.high[1])
+        self.n_omega = int(np.array(nvec).flatten()[1])
+        pos = list(np.arange(0.0, fine_w, fine_res)) + list(np.arange(fine_w, np.pi, coarse_res)) + [np.pi]
+        self.angle_edges = np.array(sorted(set([-e for e in pos] + pos)))
+        self.n_angle = len(self.angle_edges) - 1
+        self.observation_space = gym.spaces.MultiDiscrete([self.n_angle, self.n_omega])
 
     def discretize(self, observation):
-        observation = np.clip(observation, self.olow, self.ohigh)
-        discrete_obs_float = ((observation - self.olow) / self.range_obs * self.nvec_array)
-        return tuple(np.clip(discrete_obs_float, 0, self.nvec_array - 1).astype(int).flatten())
-        
+        th = float(observation[0]); om = float(observation[1])
+        phi = (th % (2 * np.pi)) - np.pi
+        a = int(np.clip(np.searchsorted(self.angle_edges, phi, side='right') - 1, 0, self.n_angle - 1))
+        om = np.clip(om, self.omega_low, self.omega_high)
+        b = int(np.clip((om - self.omega_low) / (self.omega_high - self.omega_low) * self.n_omega, 0, self.n_omega - 1))
+        return (a, b)
+
     def step(self, action):
         observation, reward, terminated, truncated, info = self.env.step(action)
         return self.discretize(observation), reward, terminated, truncated, info

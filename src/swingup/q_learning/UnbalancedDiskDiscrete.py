@@ -114,10 +114,10 @@ class UnbalancedDisk(gym.Env):
 
 
         # --- Sim-to-real shaping: zacht en glad sturen vlak bij de top ---
-        self.TOP_GATE_SIGMA = 0.4  # rad (~26 deg): breedte van de "bij de top" zone (breder -> eerder zacht)
+        self.TOP_GATE_SIGMA = 0.45  # rad (~26 deg): breedte van de "bij de top" zone (breder -> eerder zacht)
         self.W_U_TOP = 0.30         # straf op u^2 bij de top EN bijna stilstaand (hoger -> zachter vasthouden)
-        self.HOLD_OMEGA_SIGMA = 2.0 # rad/s: "bijna stilstaand"; sneller telt als vangen -> geen straf
-        self.W_RATE_TOP = 0.25      # straf op snelle koppelwisselingen (anti-chatter) bij de top
+        self.HOLD_OMEGA_SIGMA = 2.3 # rad/s: "bijna stilstaand"; sneller telt als vangen -> geen straf
+        self.W_RATE_TOP = 0.12      # straf op snelle koppelwisselingen (anti-chatter) bij de top
         # gate ~1 bij de top, ~0 elders -> shaping alleen waar fijn balanceren nodig is
         self.top_gate = lambda: np.exp(-0.5 * (self.err(self.th, np.pi) / self.TOP_GATE_SIGMA) ** 2)
         # hold_gate ~1 als bijna stilstaand (vasthouden), ~0 bij hoge snelheid (vangen/swing-up) -> blokkeert de vangst niet
@@ -132,8 +132,8 @@ class UnbalancedDisk(gym.Env):
             +gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega,  0, 0, 1, 1, 0.0, 2)
             # Straf voor zijn aan de onderkant (rond 0 rad), ongeacht th_ref
             - gaussian_2d(self_instance.err(self_instance.th, 0), self_instance.omega,  0, 0, 3, 3, 0.0, 40)
-            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.05)
-            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.004)
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.15)
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.014)
 
 
             # Voltage-magnitude penalty: alleen bij de top EN bijna stilstaand (vasthouden) -> niet tijdens vangen/swing-up
