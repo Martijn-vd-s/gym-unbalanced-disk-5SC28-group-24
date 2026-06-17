@@ -441,7 +441,7 @@ if __name__ == "__main__":
         ppo_epochs=10,    # Takes 10 training steps per data batch!
         lr_actor=1e-4,
         ent_coef=0.01,    
-        total_steps=1_500_000, 
+        total_steps=2_000_000, 
     )
 
     trainer.train()
