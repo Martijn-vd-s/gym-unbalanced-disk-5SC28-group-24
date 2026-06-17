@@ -441,10 +441,10 @@ if __name__ == "__main__":
         ppo_epochs=10,    # Takes 10 training steps per data batch!
         lr_actor=1e-4,
         ent_coef=0.01,    
-        total_steps=2_000_000, 
+        total_steps=1_500_000, 
     )
 
     trainer.train()
     trainer.load("ppo_best.pth")
-    ENV_KWARGS = dict(umax=3.0, dt=0.025, randomise=False)
+    ENV_KWARGS = dict(umax=3.0, dt=0.025, randomise=True)
     demo(trainer, ENV_CLS, ENV_KWARGS, n_steps=500)
