@@ -42,16 +42,16 @@ class UnbalancedDisk(gym.Env):
 
         self.umax = umax
         self.dt = dt #time step
-        self.num_actions = 11
+        self.num_actions = 9
         self.render_mode = render_mode
 
         self.action_space = spaces.Discrete(self.num_actions)
         # Fijne resolutie rond 0 voor zacht vasthouden bij de top (vult het gat tussen 0 en 0.5).
         # holdhoek per koppel (nieuwe params): 0.15->1.6deg, 0.35->3.7deg, 0.7->7.5deg, 1.8->20deg, 3->34deg
-        self.discrete_action_map  = [-3, -1.8, -0.7, -0.35, -0.15, 0, 0.15, 0.35, 0.7, 1.8, 3] #fine
+        # self.discrete_action_map  = [-3, -1.8, -0.7, -0.35, -0.15, 0, 0.15, 0.35, 0.7, 1.8, 3] #fine
         # self.discrete_action_map  = [-3, -1.8,  -0.5 ,  0,  0.5, 1.8,  3] #1
         # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
-        # self.discrete_action_map  = [-3,  -2, -1,  -0.5 , -0.2, 0,  0.2, 0.5, 1, 2, 3] #2
+        self.discrete_action_map  = [-3,  -2, -1,  -0.6 , 0,  0.6, 1, 2, 3] #2
         # self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
         low = [-(5/4)*np.pi,-5] 
         high = [(5/4)*np.pi,5]
