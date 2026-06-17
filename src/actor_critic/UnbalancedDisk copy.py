@@ -41,11 +41,11 @@ class UnbalancedDisk(gym.Env):
         self.coulomb_omega = 0.001
 
         self.randomise = randomise
-        # if randomise:  # <- enable during training, disable for real deployment
-        #     self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
-        #     self.gamma *= np.random.uniform(0.8, 1.2)  # 20%
-        #     self.Ku *= np.random.uniform(0.9, 1.1)
-        #     self.Fc *= np.random.uniform(0.8, 1.2)
+        if randomise:  # <- enable during training, disable for real deployment
+            self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
+            self.gamma *= np.random.uniform(0.8, 1.2)  # 20%
+            self.Ku *= np.random.uniform(0.9, 1.1)
+            self.Fc *= np.random.uniform(0.8, 1.2)
 
         self.umax = umax
         self.dt = dt  # time step
@@ -68,8 +68,6 @@ class UnbalancedDisk(gym.Env):
             shape=(2,),
         )
 
-        # self.reward_fun = lambda self: np.exp(-(self.th%(2*np.pi)-np.pi)**2/(2*(np.pi/7)**2)) #example reward function, change this!
-
         self.err = lambda self: (
             ((self.th - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
         )
@@ -80,7 +78,6 @@ class UnbalancedDisk(gym.Env):
         self.viewer = None
         self.u = 0  # for visual
         self.reset()
-
 
     def _reward(self):
         # get the error
@@ -97,37 +94,27 @@ class UnbalancedDisk(gym.Env):
         # Gaussian reward for being close to the target swing-up velocity, scaled by how far we are from the upright position
         sigma_swing = 2.0
         r_swing = 0.5 * np.exp(-((self.omega - target_omega)**2) / (2 * sigma_swing**2))
+
+        # sigma_track = 0.087 #np.deg2rad(6.0)          # sharp gradient inside the +-15deg band
+        # r_track = np.exp(-(err**2) / (2 * sigma_track**2))
         
         # control effort penalty
         u_norm = self.u / self.umax
-        u_penalty = 0.05 * u_norm**2
+        u_penalty = 0.1 * u_norm**2
 
         prev_u_norm = getattr(self, "_prev_u_norm", u_norm)
         rate_penalty = 0.02 * (u_norm - prev_u_norm)**2   # penalty for switching 
         self._prev_u_norm = u_norm
-
-        sigma_track = np.deg2rad(6.0)
-        r_track = np.exp(-(err**2) / (2 * sigma_track**2))
         
-        return r_balance + r_swing - u_penalty - rate_penalty + r_track
-        # return r_balance + r_swing - u_penalty
+        return r_balance + r_swing - u_penalty - rate_penalty #+ r_track
 
 
     def step(self, action):
         # convert action to u
         terminated = False
 
-        if self.randomise:  # simulate delay for sim-to-real transfer
-            # add latest action to delay buffer
-            self.action_delay_buffer.append(action)
-            # pop the oldest action from the buffer to use as the delayed action
-            delayed_action = self.action_delay_buffer.popleft()
-        else:
-            delayed_action = action
-
         # self.u = action  # continuous
-        self.u = delayed_action  # continuous with delay
-
+        self.u = action  # continuous with delay
 
         # self.u = [-3,-1,0,1,3][action] #discrate
         # self.u = [-3,3][action] #discrate
@@ -151,11 +138,9 @@ class UnbalancedDisk(gym.Env):
         self.th, self.omega = sol.y[:, -1]
         ##### End do not edit   #####
 
-        # if np.random.rand() < 0.005:   # ~once per 200 steps
-        #     self.th_ref = np.pi + np.random.uniform(np.deg2rad(-15), np.deg2rad(15))
-
-        self._t += self.dt
-        self.th_ref = np.pi + np.deg2rad(15) * np.sign(np.sin(2 * np.pi * 0.2 * self._t))
+        # w = 2 * np.pi * self._ref_freq
+        # self.th_ref   = np.pi + self._ref_amp * np.sin(w * self._t_elapsed + self._ref_phase)
+        # self._ref_omega = self._ref_amp * w * np.cos(w * self._t_elapsed + self._ref_phase)
 
         # accumulate total rotation
         self._th_accumulated += self.th - self.th_before
@@ -178,31 +163,22 @@ class UnbalancedDisk(gym.Env):
         self.th_before = 0.0
         # filter to 0
         self.omega_filtered = 0.0
+        
         # delay buffer for sim-to-real 
-        self.action_delay_buffer = deque([0.0])
+        # self.action_delay_buffer = deque([0.0])
 
-        self._t = np.random.choice([0.0, 2.5])
+        self._ref_amp = np.random.uniform(0.0, np.deg2rad(15))   # 0 = plain hold-at-top episodes
+        self._ref_freq = np.random.uniform(0.0, 0.15)             # Hz, conservative to start
+        self._ref_phase = np.random.uniform(0, 2 * np.pi)
+        self._t_elapsed = 0.0
+        self.th_ref = np.pi + self._ref_amp * np.sin(self._ref_phase)   # set before first get_obs()
+        self._ref_omega = 0.0
 
-        self.th_ref = np.pi + np.random.uniform(np.deg2rad(-15), np.deg2rad(15))
-        self._ref_omega = 0.0   # static setpoint -> no reference velocity
-
-        # self.omega0 = 12.7908
-        # self.delta_th = 0
-        # self.gamma = 2.1904
-        # self.Ku = 30.4070s
-        # self.Fc = 9.1626
-        # self.coulomb_omega = 0.001
-
-        # if self.randomise:  # <- enable during training, disable for real deployment
-        #     self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
-        #     self.gamma *= np.random.uniform(0.8, 1.2)  # 20%
-        #     self.Ku *= np.random.uniform(0.9, 1.1)
-        #     self.Fc *= np.random.uniform(0.8, 1.2)
-        # if self.randomise:
-        #     self.omega0 = 11.339846957335382 * np.random.uniform(0.9, 1.1)
-        #     self.gamma = 1.3328339309394384 * np.random.uniform(0.8, 1.2)
-        #     self.Ku = 28.136158407237073 * np.random.uniform(0.9, 1.1)
-        #     self.Fc = 6.062729509386865 * np.random.uniform(0.8, 1.2)
+        if self.randomise:  # <- enable during training, disable for real deployment
+            self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
+            self.gamma *= np.random.uniform(0.8, 1.2)  # 20%
+            self.Ku *= np.random.uniform(0.9, 1.1)
+            self.Fc *= np.random.uniform(0.8, 1.2)
 
         return self.get_obs(), {}
 
@@ -334,7 +310,7 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
         extra_noise_scale = 1.0 if self.randomise else 0.0
         self.sim_to_real_omega = self.omega_noise + np.random.normal(loc=0, scale=extra_noise_scale)
 
-        extra_noise_scale_th = 0.001 if self.randomise else 0.0
+        extra_noise_scale_th = 0.1 if self.randomise else 0.0
         sim_to_real_th = self.th_noise + np.random.normal(loc=0, scale=extra_noise_scale_th)
 
         # simple low-pass filter to smooth out the noise in omega, making it more realistic for a physical sensor
@@ -347,7 +323,8 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
                 np.cos(sim_to_real_th),
                 self.sim_to_real_omega, # changed from self.omega_noise to self.omega_filtered for smoother sensor reading
                 (err_noise / np.pi),
-                (self.u / self.umax), # reg omega # normalized control input, so the agent know the current action due to lag
+                (self.u / self.umax), # normalized control input, so the agent know the current action due to lag
+                # (self._ref_omega / 40.0), 
             ]
         )  # change anything here
 

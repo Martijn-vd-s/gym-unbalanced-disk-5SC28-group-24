@@ -18,12 +18,52 @@ import os
 # Set random seeds for reproducibility
 torch.manual_seed(42)
 np.random.seed(42)
+os.environ["OMP_NUM_THREADS"] = "1"
+torch.set_num_threads(1)
 
 
 #########################################################################
 #  NETWORKS
 #########################################################################
 
+
+# class Actor(nn.Module):
+#     """Gaussian policy: maps [sin θ, cos θ, ω, err] -> μ, log σ."""
+
+#     def __init__(
+#         self,
+#         obs_dim: int = 4,
+#         act_dim: int = 1,
+#         hidden: int = 128,
+#         log_std_min: float = -5,
+#         log_std_max: float = 1,
+#     ):
+#         super().__init__()
+#         self.log_std_min = log_std_min
+#         self.log_std_max = log_std_max
+#         self.net = nn.Sequential(
+#             nn.Linear(obs_dim, hidden),
+#             nn.Tanh(),
+#             nn.Linear(hidden, hidden),
+#             nn.Tanh(),
+#         )
+#         # mu is the mean action output by the policy, and log_std is the log standard deviation which is clamped to a reasonable range for numerical stability. The action is sampled from a normal distribution defined by these parameters, and then squashed through a tanh function to ensure it falls within the action bounds of [-3, 3].
+#         self.mu_head = nn.Linear(hidden, act_dim)
+#         self.log_std_head = nn.Linear(hidden, act_dim)
+
+#     def forward(self, x):
+#         h = self.net(x)
+#         mu = self.mu_head(h)
+#         log_std = self.log_std_head(h).clamp(self.log_std_min, self.log_std_max)
+#         return mu, log_std
+
+#     def get_action(self, x):
+#         mu, log_std = self(x)
+#         dist = Normal(mu, log_std.exp())
+#         raw = dist.rsample()
+#         action = 3.0 * torch.tanh(raw)
+#         log_prob = dist.log_prob(raw) - torch.log(1 - torch.tanh(raw).pow(2) + 1e-6)
+#         return action, log_prob.sum(-1, keepdim=True)
 
 class Actor(nn.Module):
     """
@@ -58,16 +98,19 @@ class Actor(nn.Module):
                 Prevents the policy from becoming completely chaotic or exploding. Default is 1.
         """
         super().__init__()
-        self.log_std_min = log_std_min
-        self.log_std_max = log_std_max
         self.net = nn.Sequential(
             nn.Linear(obs_dim, hidden),
             nn.Tanh(),
             nn.Linear(hidden, hidden),
             nn.Tanh(),
         )
-        self.mu_head = nn.Linear(hidden, act_dim)
-        self.log_std_head = nn.Linear(hidden, act_dim)
+        # Squash the mean safely inside the neural network graph
+        self.mu_head = nn.Sequential(
+            nn.Linear(hidden, act_dim),
+            nn.Tanh() 
+        )
+        # Standalone standard deviation parameter (highly stable for A2C)
+        self.log_std = nn.Parameter(torch.zeros(act_dim) - 0.5) 
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -500,7 +543,8 @@ class A2CTrainer:
                     value = self.critic(obs_t).squeeze(-1)
 
                 actions_np = action.squeeze(-1).cpu().numpy()
-                next_obs, rew, done = self.envs.step(actions_np)
+                clipped_actions = np.clip(actions_np, -3.0, 3.0) # Add this clip ---------------------------------------
+                next_obs, rew, done = self.envs.step(clipped_actions)
 
                 # Append trajectory values to lists
                 obs_buf.append(obs)
@@ -530,8 +574,6 @@ class A2CTrainer:
 
             # Evaluate the rollout data and gather advantages & returns
             advantages, returns = self._gae(rew_buf, val_buf, done_buf, last_val)
-            self.sched_actor.step() # update learning rate of actor
-            self.sched_critic.step() # update learning rate of critic
 
             def flat(x):
                 # Flatten list of arrays into a single array of shape
@@ -544,14 +586,22 @@ class A2CTrainer:
             ret_f = self._t(returns.flatten())
             adv_f = (adv_f - adv_f.mean()) / (adv_f.std() + 1e-8)
 
-            # ACTOR OPTIMIZATION
-            mu, log_std = self.actor(obs_f) # mu -> mean action, log_std -> log standard deviation
-            dist = Normal(mu, log_std.exp()) # normal distribution
-            raw = torch.atanh((act_f / 3.0).clamp(-0.999, 0.999)) # Invert the tanh compression back to raw gaussian values
-            log_p = (
-                dist.log_prob(raw) - torch.log(1 - torch.tanh(raw).pow(2) + 1e-6)
-            ).sum(-1) # log_p is the log probability of the action (Jacobian correction)
-            entropy = dist.entropy().sum(-1).mean() # the entropy of the distribution
+            # Compute actor loss using the log probability of actions under the current policy and the advantages, plus an entropy bonus for exploration.
+            # mu is the mean action from the policy, log_std is the log standard deviation, dist is the resulting normal distribution, raw is the pre-tanh action, log_p is the log probability of the action, and entropy is the entropy of the distribution.
+            # mu, log_std = self.actor(obs_f)
+            # dist = Normal(mu, log_std.exp())
+            # raw = torch.atanh((act_f / 3.0).clamp(-0.95, 0.95))
+            # log_p = (
+            #     dist.log_prob(raw) - torch.log(1 - torch.tanh(raw).pow(2) + 1e-6)
+            # ).sum(-1)
+            # entropy = dist.entropy().sum(-1).mean()
+
+            ### hope this stabiles everything
+            mu = self.actor(obs_f)
+            std = self.actor.log_std.exp().expand_as(mu)
+            dist = Normal(mu, std)
+            log_p = dist.log_prob(act_f).sum(-1)
+            entropy = dist.entropy().sum(-1).mean()
 
             # Policy loss -> maximize advantage weighted log probabilities, add entropy bonus (exploration)
             actor_loss = -(log_p * adv_f).mean() - self.ent_coef * entropy
@@ -574,6 +624,9 @@ class A2CTrainer:
             # Gradient clipping for stability, preventing excessively large updates that can destabilize training.
             nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad)
             self.opt_critic.step()
+
+            self.sched_actor.step()
+            self.sched_critic.step()
 
             # Log training metrics for visualization and checkpointing.
             self.history["actor_loss"].append(actor_loss.item())
@@ -745,8 +798,8 @@ def demo(trainer: A2CTrainer, env_cls, env_kwargs: dict, n_steps: int = 500):
             #                          dtype=torch.float32).unsqueeze(0)
 
             obs_t = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
-            mu, _ = trainer.actor(obs_t)
-            action = (3.0 * torch.tanh(mu)).item()
+            mu = trainer.actor(obs_t)
+            action = mu.item()
 
             obs, reward, term, trunc, _ = env.step(action)
 
@@ -833,7 +886,7 @@ if __name__ == "__main__":
 
     ENV_CLS = UnbalancedDisk_sincos
     ENV_KWARGS = dict(
-        umax=3.0, dt=0.025, randomise=True
+        umax=3.0, dt=0.025, randomise=False
     )  # set randomise=True during training for robustness, False for final demo
 
     trainer = A2CTrainer(
@@ -843,10 +896,10 @@ if __name__ == "__main__":
         n_steps=64,
         gamma=0.99,
         lam=0.95,
-        lr_actor=3e-4,
+        lr_actor=1e-4,
         lr_critic=1e-3,
-        ent_coef=0.005,  # higher entropy -> more exploration
-        total_steps=500_000,  # 2M steps for swing-up to emerge
+        ent_coef=0.02,  # higher entropy -> more exploration
+        total_steps=1_500_000,  # 2M steps for swing-up to emerge
         hidden=256,
     )
 

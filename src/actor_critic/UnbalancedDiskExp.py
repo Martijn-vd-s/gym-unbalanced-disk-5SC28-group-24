@@ -5,6 +5,7 @@ from scipy.integrate import solve_ivp
 from os import path
 import time
 import usb.util
+from collections import deque
 
 global dev, dev_active
 dev_active = False
@@ -67,38 +68,36 @@ class UnbalancedDisk_exp(gym.Env):
         self.err = lambda self: (
             ((self.th - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
         )
-        # self.reward_fun = lambda self: np.exp(-(self.err(self)**2) / (2 * 0.1**2))
-        # W1 = 10
-        # W_BOT_SPIN = 0.1
-        # W_TOP = 100
-
-        # self.reward_fun = lambda self: (
-        #     W1 * np.cos(self.err(self))
-        #     - min(W_BOT_SPIN * max(0, abs(self.th)-(4/3)*np.pi) ** 2, 300)
-        #     + W_TOP * np.exp(-5 * (self.err(self))**2 - 0.02 * (self.omega - self.th_ref)**2)
-        # )
-
-        self.reward_fun = lambda self: (
-            (
-                2 * np.cos(self.err(self))
-                - 0.01 * self.omega**2
-                + 10 * np.exp(-0.1 * self.err(self) ** 2 - 0.0 * self.omega**2)
-                - 10.0
-                * np.exp(
-                    -0.05
-                    * (self.err(self) ** 2 - np.pi**2) ** 2
-                    / (2 * (np.pi / 4) ** 2)
-                )  # peaks at err=±π (bottom)
-                * np.exp(-0.1 * self.omega**2 / (2 * 0.5**2))
-                # + 1 * np.exp(-self.err(self)**2-self.omega**2)
-            )
-            / 12
-        )
+        
+        # Link to the newly matched reward function
+        self.reward_fun = lambda self: self._reward()
 
         # Viewer things
         self.render_mode = render_mode
         self.viewer = None
         self.u = 0  # for visual
+        self.omega_filtered = 0.0
+
+    def _reward(self):
+        # get the error
+        err = self.err(self)
+        
+        # balance reward: Gaussian centered at err=0 (upright)
+        sigma_err = np.pi / 4.0
+        r_balance = np.exp(-(err**2) / (2 * sigma_err**2))
+        
+        # s shape swing-up reward
+        A = 12.0  # Peak target velocity
+        target_omega = A * np.sin(err / 2.0)
+        
+        # Gaussian reward for being close to the target swing-up velocity, scaled by how far we are from the upright position
+        sigma_swing = 2.0
+        r_swing = 0.5 * np.exp(-((self.omega - target_omega)**2) / (2 * sigma_swing**2))
+        
+        # control effort penalty
+        u_penalty = 0.05 * (self.u / self.umax)**2
+        
+        return r_balance + r_swing - u_penalty
 
     def init_encoder(self):
         data_w = [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -108,43 +107,9 @@ class UnbalancedDisk_exp(gym.Env):
 
     def set_inactivity_release_time(self, inactivity_release_time):
         self.inactivity_release_time = inactivity_release_time
-        data_w = [
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            self.inactivity_release_time,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ]
+        data_w = [1, 1, 0, 0, 0, 0, 0, self.inactivity_release_time, 0, 0, 0, 0, 0, 0, 0, 0]
         self.dev.write(0x02, data_w, 2)
-        data_w = [
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            self.inactivity_release_time,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ]
+        data_w = [0, 1, 0, 0, 0, 0, 0, self.inactivity_release_time, 0, 0, 0, 0, 0, 0, 0, 0]
         self.dev.write(0x02, data_w, 2)
 
     def init_dev(self):
@@ -161,8 +126,6 @@ class UnbalancedDisk_exp(gym.Env):
     def step(self, action):
         # convert action to u
         self.u = action  # continuous
-        # self.u = [-3,-1,0,1,3][action] #discrate
-        # self.u = [-3,3][action] #discrate
 
         ##### Do not edit whats below ######
         self.u = np.clip(self.u, -self.umax, self.umax)
@@ -172,22 +135,8 @@ class UnbalancedDisk_exp(gym.Env):
         digital_in_sec = divmod(digital_input, 256)
 
         data_pack = [
-            0,
-            0,
-            digital_in_sec[0],
-            0,
-            0,
-            Relais,
-            digital_in_sec[1],
-            self.inactivity_release_time,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
+            0, 0, digital_in_sec[0], 0, 0, Relais, digital_in_sec[1],
+            self.inactivity_release_time, 0, 0, 0, 0, 0, 0, 0, 0,
         ]
         self.dev.write(0x02, data_pack, 10)
 
@@ -196,7 +145,19 @@ class UnbalancedDisk_exp(gym.Env):
             pass
         obs = self.get_obs()
         reward = self.reward_fun(self)
-        return obs, reward, False, False, {}
+
+        # accumulate total rotation
+        self._th_accumulated += self.th - self.th_before
+        self.th_before = self.th
+        ## terminate if spun more than 3π in total (reward hacking prevention)
+        spin_limit = 4 * np.pi
+        terminated = abs(self._th_accumulated) > spin_limit
+        reward = self.reward_fun(self)
+
+        if terminated:
+            reward -=  10  # heavy penalty for spinning too much
+
+        return obs, reward, terminated, False, {}
 
     def reset(self, seed=None):
         theta_now = self.get_obs()[0]
@@ -209,6 +170,9 @@ class UnbalancedDisk_exp(gym.Env):
             theta_now = theta_new
         time.sleep(0.1)
         self.init_encoder()
+        self.omega_filtered = 0.0 # reset filter
+        self._th_accumulated = 0.0
+        self.th_before = self.get_obs()[0]
         return self.get_obs(), {}
 
     def get_obs(self):
@@ -223,11 +187,7 @@ class UnbalancedDisk_exp(gym.Env):
                 time.sleep(0.001)
                 if couldnotreadcounter > 20:
                     raise e
-        # self.data_pack_read=self.dev.read(0x86,16,1) #not sure why this works better than one read WL
         data = self.data_pack_read
-        # Write: command, digitalout, [dac1( dac2)]
-        # Read:  [status elapsedtime position1 position2 motorcurrent motorvoltage externalvoltage digitalin averagespeed1 averagespeed2]
-        # Read:  [status elapsedtime position1 position2 motorcurrent beamvoltage pendulumvoltage digitalin]
         if data[4] < 128:
             position = 2 * np.pi * (data[4] * 65536 + data[3] * 256 + data[2]) / 2000
         else:
@@ -237,16 +197,6 @@ class UnbalancedDisk_exp(gym.Env):
                 * (data[4] * 65536 + data[3] * 256 + data[2] - 16777216)
                 / 2000
             )
-
-        # 0 = binary
-        # 1 = sample time something
-        # 2 = theta
-        # 3 = omega
-        # 4 = force?
-        # 5 = 4.ss??
-        # 6 = 3.23
-        # 7 = 0
-        # 8 = -inf?
 
         d = data
         omega = (
@@ -259,7 +209,7 @@ class UnbalancedDisk_exp(gym.Env):
         # obs[2]: 2 theta
         self.th = position
         # obs[3]: 3 omega
-        self.omega = omega  # self.obs_raw[3]
+        self.omega = omega
         return np.array([self.th, self.omega])
 
     def render(self):
@@ -281,18 +231,12 @@ class UnbalancedDisk_exp(gym.Env):
         self.surf.fill((255, 255, 255))
 
         gfxdraw.filled_circle(  # central blue disk
-            self.surf,
-            screen_width // 2,
-            screen_height // 2,
-            int(screen_width / 2 * 0.65 * 1.3),
-            (32, 60, 92),
+            self.surf, screen_width // 2, screen_height // 2,
+            int(screen_width / 2 * 0.65 * 1.3), (32, 60, 92),
         )
         gfxdraw.filled_circle(  # small midle disk
-            self.surf,
-            screen_width // 2,
-            screen_height // 2,
-            int(screen_width / 2 * 0.06 * 1.3),
-            (132, 132, 126),
+            self.surf, screen_width // 2, screen_height // 2,
+            int(screen_width / 2 * 0.06 * 1.3), (132, 132, 126),
         )
 
         from math import cos, sin
@@ -300,14 +244,14 @@ class UnbalancedDisk_exp(gym.Env):
         r = screen_width // 2 * 0.40 * 1.3
         gfxdraw.filled_circle(  # disk
             self.surf,
-            int(screen_width // 2 - sin(th) * r),  # is direction correct?
+            int(screen_width // 2 - sin(th) * r),
             int(screen_height // 2 - cos(th) * r),
             int(screen_width / 2 * 0.22 * 1.3),
             (155, 140, 108),
         )
         gfxdraw.filled_circle(  # small nut
             self.surf,
-            int(screen_width // 2 - sin(th) * r),  # is direction correct?
+            int(screen_width // 2 - sin(th) * r),
             int(screen_height // 2 - cos(th) * r),
             int(screen_width / 2 * 0.22 / 8 * 1.3),
             (71, 63, 48),
@@ -369,14 +313,29 @@ class UnbalancedDisk_exp_sincos(UnbalancedDisk_exp):
 
     def __init__(self, umax=3.0, dt=0.025):
         super(UnbalancedDisk_exp_sincos, self).__init__(umax=umax, dt=dt)
-        low = [-1, -1, -40.0]
-        high = [1, 1, 40.0]
+        low = [-1, -1, -40.0, -40.0, -1]
+        high = [1, 1, 40.0, 40.0, 1]
         self.observation_space = spaces.Box(
             low=np.array(low, dtype=np.float32),
             high=np.array(high, dtype=np.float32),
-            shape=(3,),
+            shape=(5,),
         )
 
     def get_obs(self):
+        # Update self.th and self.omega from hardware
         super(UnbalancedDisk_exp_sincos, self).get_obs()
-        return np.array([np.sin(self.th), np.cos(self.th), self.omega])
+        
+        # Calculate error
+        err = ((self.th - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
+        
+        # Apply the low-pass filter to smooth out noise in omega
+        # alpha = 0.3
+        # self.omega_filtered = (alpha * self.omega) + ((1.0 - alpha) * self.omega_filtered)
+
+        return np.array([
+            np.sin(self.th), 
+            np.cos(self.th), 
+            (self.omega + 1.874),
+            (err / np.pi),
+            (self.u / self.umax)
+        ])
