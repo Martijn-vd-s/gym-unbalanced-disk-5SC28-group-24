@@ -29,13 +29,13 @@
         self.Fc = 9.1626
         self.coulomb_omega = 0.001
 
-        self.randomise = randomise
+       self.randomise = randomise
         if randomise:  # <- enable during training, disable for real deployment
             self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
             self.gamma *= np.random.uniform(0.8, 1.2)  # 20%
             self.Ku *= np.random.uniform(0.9, 1.1)
             self.Fc *= np.random.uniform(0.8, 1.2)
-
+ 
 
 
 
