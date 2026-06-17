@@ -60,7 +60,7 @@ ENV_CLS = UnbalancedDisk_exp
 ENV_KWARGS = dict(umax=3.0, dt=0.025)
 
 # Zorg dat dit de naam is van je daadwerkelijk getrainde pickle model
-checkpoint_filename = "Q_learning_DATA_v43.pkl" 
+checkpoint_filename = "Q_learning_DATA_v45.pkl" 
 n_steps = 1500  # Aantal stappen voor de evaluatie/demo
 
 if __name__ == "__main__":
