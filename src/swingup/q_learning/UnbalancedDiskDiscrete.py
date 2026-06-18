@@ -121,7 +121,7 @@ class UnbalancedDisk(gym.Env):
         # gate ~1 bij de top, ~0 elders -> shaping alleen waar fijn balanceren nodig is
         self.top_gate = lambda: np.exp(-0.6 * (self.err(self.th, np.pi) / self.TOP_GATE_SIGMA) ** 2)
         # hold_gate ~1 als bijna stilstaand (vasthouden), ~0 bij hoge snelheid (vangen/swing-up) -> blokkeert de vangst niet
-        self.hold_gate = lambda: np.exp(-0.6 * (self.omega / self.HOLD_OMEGA_SIGMA) ** 2)
+        self.hold_gate = lambda: np.exp(-0.4 * (self.omega / self.HOLD_OMEGA_SIGMA) ** 2)
 
         # DE NIEUWE REWARD FUNCTIE
         self.reward_fun = lambda self_instance: (
