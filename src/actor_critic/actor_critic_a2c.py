@@ -490,7 +490,7 @@ class A2CTrainer:
 
         # Traverse backward chronologically from time step T-1 down to 0
         for t in reversed(range(T)):
-            # Identify the value for the nextstep
+            # Identify the value for the next step
             next_val = last_value if t == T - 1 else values[t + 1] 
 
             # Compute temporal difference (TD): r_t + γ * V(s_{t+1}) - V(s_t)
