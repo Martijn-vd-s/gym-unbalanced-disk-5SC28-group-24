@@ -42,7 +42,7 @@ class UnbalancedDisk(gym.Env):
 
         self.umax = umax
         self.dt = dt #time step
-        self.num_actions = 10
+        self.num_actions = 12
         self.render_mode = render_mode
 
         self.action_space = spaces.Discrete(self.num_actions)
@@ -51,7 +51,7 @@ class UnbalancedDisk(gym.Env):
         # self.discrete_action_map  = [-3, -1.8, -0.7, -0.35, -0.15, 0, 0.15, 0.35, 0.7, 1.8, 3] #fine
         # self.discrete_action_map  = [-3, -1.8,  -0.7 ,   0.7, 1.8,  3] #1
         # self.discrete_action_map  = [-3, -1.2 ,  0, 1.2,  3] #1
-        self.discrete_action_map  = [-3,  -2.2, -1.5,-0.9,  -0.5 ,  0.5, 0.9, 1.5, 2.2, 3] #2
+        self.discrete_action_map  = [-3,  -2.2, -1.5,-0.9,  -0.5, -0.2,  0.2,0.5, 0.9, 1.5, 2.2, 3] #2
         # self.discrete_action_map  = [-3,  -1.7, -0.7,  -0.2, 0,  0.2, 0.7, 1.7, 3] #3
         low = [-(5/4)*np.pi,-5] 
         high = [(5/4)*np.pi,5]
@@ -114,12 +114,12 @@ class UnbalancedDisk(gym.Env):
 
 
         # --- Sim-to-real shaping: zacht en glad sturen vlak bij de top ---
-        self.TOP_GATE_SIGMA = 0.2  # rad (~26 deg): breedte van de "bij de top" zone (breder -> eerder zacht)
-        self.W_U_TOP = 0.35         # straf op u^2 bij de top EN bijna stilstaand (hoger -> zachter vasthouden)
+        self.TOP_GATE_SIGMA = 0.3  # rad (~26 deg): breedte van de "bij de top" zone (breder -> eerder zacht)
+        self.W_U_TOP = 0.24         # straf op u^2 bij de top EN bijna stilstaand (hoger -> zachter vasthouden)
         self.HOLD_OMEGA_SIGMA = 2.0 # rad/s: "bijna stilstaand"; sneller telt als vangen -> geen straf
-        self.W_RATE_TOP = 0.09      # straf op snelle koppelwisselingen (anti-chatter) bij de top
+        self.W_RATE_TOP = 0.06      # straf op snelle koppelwisselingen (anti-chatter) bij de top
         # gate ~1 bij de top, ~0 elders -> shaping alleen waar fijn balanceren nodig is
-        self.top_gate = lambda: np.exp(-0.5 * (self.err(self.th, np.pi) / self.TOP_GATE_SIGMA) ** 2)
+        self.top_gate = lambda: np.exp(-0.8 * (self.err(self.th, np.pi) / self.TOP_GATE_SIGMA) ** 2)
         # hold_gate ~1 als bijna stilstaand (vasthouden), ~0 bij hoge snelheid (vangen/swing-up) -> blokkeert de vangst niet
         self.hold_gate = lambda: np.exp(-0.5 * (self.omega / self.HOLD_OMEGA_SIGMA) ** 2)
 
@@ -132,8 +132,8 @@ class UnbalancedDisk(gym.Env):
             +gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega,  0, 0, 1, 1, 0.0, 2)
             # Straf voor zijn aan de onderkant (rond 0 rad), ongeacht th_ref
             - gaussian_2d(self_instance.err(self_instance.th, 0), self_instance.omega,  0, 0, 3, 3, 0.0, 40)
-            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.15)
-            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.014)
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.15, 0.15, 0.0, 0.2)
+            + gaussian_2d(self_instance.err(self_instance.th, np.pi), self_instance.omega, 0, 0, 0.07, 0.07, 0.0, 0.024)
 
 
             # Voltage-magnitude penalty: alleen bij de top EN bijna stilstaand (vasthouden) -> niet tijdens vangen/swing-up
@@ -159,6 +159,7 @@ class UnbalancedDisk(gym.Env):
         self.bonus_region = 0
         self.set_th = None
         self.set_omega = None
+        self.start_scale = 1.0  # curriculum: 1.0=wijde start -> ~0=onderaan in rust (Qlearn zet dit)
         self.step_t = 0
         self.time_to_become_stable = 0
         self.th_ref = 0
@@ -223,8 +224,9 @@ class UnbalancedDisk(gym.Env):
          
     def reset(self,seed=None):
         super().reset(seed=seed)
-        self.th = self.set_th if self.set_th is not None else np.random.uniform(-np.pi*(4/5), np.pi*(4/5))
-        self.omega = self.set_omega if self.set_omega is not None else np.random.uniform(-2.8, 2.8)
+        s = self.start_scale  # 1.0=wijd, ->0=onderaan in rust
+        self.th = self.set_th if self.set_th is not None else np.random.uniform(-np.pi*(4/5)*s, np.pi*(4/5)*s)
+        self.omega = self.set_omega if self.set_omega is not None else np.random.uniform(-2.8*s, 2.8*s)
         self.u = 0
         self.prev_u = 0
 
