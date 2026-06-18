@@ -114,10 +114,10 @@ class UnbalancedDisk(gym.Env):
 
 
         # --- Sim-to-real shaping: zacht en glad sturen vlak bij de top ---
-        self.TOP_GATE_SIGMA = 0.25  # rad (~26 deg): breedte van de "bij de top" zone (breder -> eerder zacht)
+        self.TOP_GATE_SIGMA = 0.2  # rad (~26 deg): breedte van de "bij de top" zone (breder -> eerder zacht)
         self.W_U_TOP = 0.35         # straf op u^2 bij de top EN bijna stilstaand (hoger -> zachter vasthouden)
         self.HOLD_OMEGA_SIGMA = 2.0 # rad/s: "bijna stilstaand"; sneller telt als vangen -> geen straf
-        self.W_RATE_TOP = 0.12      # straf op snelle koppelwisselingen (anti-chatter) bij de top
+        self.W_RATE_TOP = 0.09      # straf op snelle koppelwisselingen (anti-chatter) bij de top
         # gate ~1 bij de top, ~0 elders -> shaping alleen waar fijn balanceren nodig is
         self.top_gate = lambda: np.exp(-0.5 * (self.err(self.th, np.pi) / self.TOP_GATE_SIGMA) ** 2)
         # hold_gate ~1 als bijna stilstaand (vasthouden), ~0 bij hoge snelheid (vangen/swing-up) -> blokkeert de vangst niet
