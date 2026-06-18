@@ -1,3 +1,17 @@
+"""
+Unbalanced-disk environment for the REAL hardware (deployment / evaluation).
+
+Same Gym interface as ``UnbalancedDiskDiscrete`` but instead of integrating the
+dynamics it talks to the physical setup over USB: ``step`` writes the chosen
+voltage to the DAC and ``get_obs`` reads the encoder (angle) and estimates the
+angular velocity. A policy trained in simulation is run here greedily.
+
+IMPORTANT: ``num_actions``, ``discrete_action_map`` and the observation range
+MUST match the training environment (``UnbalancedDiskDiscrete``) and the
+``Discretize_obs`` wrapper in ``runExp.py`` exactly, otherwise the trained
+Q-table indexes the wrong states/voltages.
+"""
+
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -9,19 +23,15 @@ import usb.util
 global dev, dev_active
 dev_active = False
 
-# todo:
-# update documentation on install and usage
 
 class UnbalancedDisk_exp(gym.Env):
-    '''
-    UnbalancedDisk_exp
-    th =            
+    '''Hardware (USB) unbalanced disk. Angle convention::
+
                   +-pi
                     |
            pi/2   ----- -pi/2
                     |
-                    0  = starting location
-
+                    0  = hanging down (start)
     '''
     def __init__(self, umax=3., dt=0.025, force_restart_dev=False, inactivity_release_time=3, render_mode='human'):
         '''
@@ -43,10 +53,11 @@ class UnbalancedDisk_exp(gym.Env):
         self.dt = dt
 
         ### Gym things
-        self.num_actions = 8
+        # MUST exactly match UnbalancedDiskDiscrete.py (training) and runExp.py,
+        # otherwise a trained Q-table maps action indices to the wrong voltages.
+        self.num_actions = 12
         self.action_space = spaces.Discrete(self.num_actions)
-        # MOET exact gelijk zijn aan UnbalancedDiskDiscrete.py (training) -> anders mappen indices op verkeerde voltages
-        self.discrete_action_map  = [-3,  -2.2, -1.2,  -0.6 ,  0.6, 1.2, 2.2, 3]
+        self.discrete_action_map  = [-3, -2.2, -1.5, -0.9, -0.5, -0.2, 0.2, 0.5, 0.9, 1.5, 2.2, 3]
 
         low = [-(5/4)*np.pi, -5]   # MOET gelijk zijn aan training-range
         high = [(5/4)*np.pi, 5]
@@ -112,21 +123,15 @@ class UnbalancedDisk_exp(gym.Env):
         # Viewer and logic variables
         self.render_mode = render_mode
         self.viewer = None
-        self.u = 0 
+        self.u = 0
         self.prev_u = 0
-        self.prev_th = 0
-        self.stuck = 0
-        self.err_upright = 0
-        self.up = False
-        self.balancing_ticker = 0 
-        self.punishment_over_time = 0
-        self.bonus_region = 0
+        self.bonus_region = 0       # extra reward term (kept 0 here)
         self.set_th = None
         self.set_omega = None
-        self.step_t = 0
+        self.step_t = 0             # step counter for the moving set-point
         self.time_to_become_stable = 0
-        self.th_ref = 0
-        self.th_set = 0
+        self.th_ref = 0             # current set-point angle (read by runExp.py for plotting)
+        self.th_set = 0             # set-point amplitude [deg]
 
     def init_encoder(self):
         data_w=[1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ]
