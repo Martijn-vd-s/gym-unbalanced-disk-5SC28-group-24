@@ -1,6 +1,7 @@
 """
 Reparameterization Trick -> https://medium.com/@ml_dl_explained/understanding-the-reparameterization-trick-be349756b91b
 Jacobian Adjustments for Constrained Parameters -> https://jsocolar.github.io/jacobians/
+Generalized Advantage Estimation -> https://apxml.com/courses/advanced-reinforcement-learning/chapter-3-advanced-policy-gradients-actor-critic/generalized-advantage-estimation
 """
 
 import numpy as np
