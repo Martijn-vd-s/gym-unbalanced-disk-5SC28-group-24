@@ -73,7 +73,7 @@ ENV_CLS = UnbalancedDisk_exp
 ENV_KWARGS = dict(umax=3.0, dt=0.025)
 
 # Trained model to deploy (must be trained with the CURRENT action map / discretisation).
-checkpoint_filename = "Q_learning_DATA_v46.pkl"
+checkpoint_filename = "Q_learning_DATA_v65.pkl"
 n_steps = 1500  # number of steps for the demo/evaluation
 
 if __name__ == "__main__":
