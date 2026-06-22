@@ -284,6 +284,8 @@ class PPOTrainer:
             })
 
         self.envs.close()
+        np.savez("ppo_training_history.npz",
+                 **{k: np.array(v) for k, v in self.history.items()})
         return self.history
 
     def save(self, path="ppo_model.pth"):
@@ -333,8 +335,8 @@ def demo(trainer, env_cls, env_kwargs: dict, n_steps: int = 500):
 
             obs, reward, term, trunc, _ = env.step(action)
 
-            # Track data for plots
-            thetas.append(theta)
+            # Track data for plots — display angle in reference frame to avoid ±180° jumps
+            thetas.append(theta_ref + err)
             refs.append(theta_ref)
             rewards.append(reward)
             omegas.append(omega)

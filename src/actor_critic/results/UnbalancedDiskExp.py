@@ -65,8 +65,6 @@ class UnbalancedDisk_exp(gym.Env):
         )
 
         self.th_ref = np.pi
-        self._auto_ref = True
-        self._t = 0.0
         self.err = lambda self: (
             ((self.th - self.th_ref + np.pi) % (2 * np.pi)) - np.pi
         )
@@ -81,26 +79,25 @@ class UnbalancedDisk_exp(gym.Env):
         self.omega_filtered = 0.0
 
     def _reward(self):
+        # get the error
         err = self.err(self)
-
+        
+        # balance reward: Gaussian centered at err=0 (upright)
         sigma_err = np.pi / 4.0
         r_balance = np.exp(-(err**2) / (2 * sigma_err**2))
-
-        A = 12.0
+        
+        # s shape swing-up reward
+        A = 12.0  # Peak target velocity
         target_omega = A * np.sin(err / 2.0)
+        
+        # Gaussian reward for being close to the target swing-up velocity, scaled by how far we are from the upright position
         sigma_swing = 2.0
         r_swing = 0.5 * np.exp(-((self.omega - target_omega)**2) / (2 * sigma_swing**2))
-
-        sigma_track = np.deg2rad(7.0)
-        r_track = 1.5 * np.exp(-(err**2) / (2 * sigma_track**2))
-
-        u_norm = self.u / self.umax
-        u_penalty = 0.05 * u_norm**2
-        prev_u_norm = getattr(self, "_prev_u_norm", u_norm)
-        rate_penalty = 0.10 * (u_norm - prev_u_norm)**2
-        self._prev_u_norm = u_norm
-
-        return r_balance + r_swing + r_track - u_penalty - rate_penalty
+        
+        # control effort penalty
+        u_penalty = 0.05 * (self.u / self.umax)**2
+        
+        return r_balance + r_swing - u_penalty
 
     def init_encoder(self):
         data_w = [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -155,11 +152,6 @@ class UnbalancedDisk_exp(gym.Env):
         ## terminate if spun more than 3π in total (reward hacking prevention)
         spin_limit = 4 * np.pi
         terminated = abs(self._th_accumulated) > spin_limit
-
-        self._t += self.dt
-        if self._auto_ref:
-            self.th_ref = np.pi + np.deg2rad(15) * np.sign(np.sin(2 * np.pi * 0.2 * self._t))
-
         reward = self.reward_fun(self)
 
         if terminated:
@@ -180,7 +172,6 @@ class UnbalancedDisk_exp(gym.Env):
         self.init_encoder()
         self.omega_filtered = 0.0 # reset filter
         self._th_accumulated = 0.0
-        self._t = 0.0
         self.th_before = self.get_obs()[0]
         return self.get_obs(), {}
 

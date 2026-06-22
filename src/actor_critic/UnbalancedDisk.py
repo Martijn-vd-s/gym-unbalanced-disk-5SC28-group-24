@@ -33,19 +33,18 @@ class UnbalancedDisk(gym.Env):
         # self.M = 0.0761844495320390
         # self.tau = 0.397973147009910
         ############# end do not edit ###################
-        self.omega0 = 12.7908
+        self._nom_omega0 = 12.7908
+        self._nom_gamma  = 2.1904
+        self._nom_Ku     = 30.4070
+        self._nom_Fc     = 9.1626
+        self.omega0 = self._nom_omega0
         self.delta_th = 0
-        self.gamma = 2.1904
-        self.Ku = 30.4070
-        self.Fc = 9.1626
+        self.gamma = self._nom_gamma
+        self.Ku = self._nom_Ku
+        self.Fc = self._nom_Fc
         self.coulomb_omega = 0.001
 
         self.randomise = randomise
-        # if randomise:  # <- enable during training, disable for real deployment
-        #     self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
-        #     self.gamma *= np.random.uniform(0.8, 1.2)  # 20%
-        #     self.Ku *= np.random.uniform(0.9, 1.1)
-        #     self.Fc *= np.random.uniform(0.8, 1.2)
 
         self.umax = umax
         self.dt = dt  # time step
@@ -54,6 +53,7 @@ class UnbalancedDisk(gym.Env):
         self.th_before = 0
         self._th_accumulated = 0
         self.prev_th = 0
+        self._auto_ref = True  # set False in eval to take control of th_ref externally
 
         # change anything here (compilable with the exercise instructions)
         self.action_space = spaces.Box(
@@ -83,34 +83,30 @@ class UnbalancedDisk(gym.Env):
 
 
     def _reward(self):
-        # get the error
         err = self.err(self)
-        
-        # balance reward: Gaussian centered at err=0 (upright)
+
+        # Wide Gaussian: dense gradient across the full swing-up range
         sigma_err = np.pi / 4.0
         r_balance = np.exp(-(err**2) / (2 * sigma_err**2))
-        
-        # s shape swing-up reward
-        A = 12.0  # Peak target velocity
+
+        # Swing-up shaping: S-curve target velocity profile
+        A = 12.0
         target_omega = A * np.sin(err / 2.0)
-        
-        # Gaussian reward for being close to the target swing-up velocity, scaled by how far we are from the upright position
         sigma_swing = 2.0
         r_swing = 0.5 * np.exp(-((self.omega - target_omega)**2) / (2 * sigma_swing**2))
-        
-        # control effort penalty
-        u_norm = self.u / self.umax
-        u_penalty = 0.05 * u_norm**2
 
+        # Tracking reward: sigma=10 deg gives strong gradient at ±15deg steps, weighted 1.5x so
+        # it dominates near the top and drives the policy to fully close the tracking error
+        sigma_track = np.deg2rad(7.0)
+        r_track = 1.5 * np.exp(-(err**2) / (2 * sigma_track**2))
+
+        u_norm = self.u / self.umax
+        u_penalty = 0.07 * u_norm**2 + 0.03 * abs(u_norm)
         prev_u_norm = getattr(self, "_prev_u_norm", u_norm)
-        rate_penalty = 0.02 * (u_norm - prev_u_norm)**2   # penalty for switching 
+        rate_penalty = 0.10 * (u_norm - prev_u_norm)**2
         self._prev_u_norm = u_norm
 
-        sigma_track = np.deg2rad(6.0)
-        r_track = np.exp(-(err**2) / (2 * sigma_track**2))
-        
-        return r_balance + r_swing - u_penalty - rate_penalty + r_track
-        # return r_balance + r_swing - u_penalty
+        return r_balance + r_swing + r_track  - u_penalty - rate_penalty
 
 
     def step(self, action):
@@ -125,9 +121,17 @@ class UnbalancedDisk(gym.Env):
         else:
             delayed_action = action
 
-        # self.u = action  # continuous
-        self.u = delayed_action  # continuous with delay
+        self.u = delayed_action
 
+        # Clip and save commanded voltage before applying deadzone to dynamics.
+        # The policy observes the commanded voltage, but the motor ignores inputs < ~0.5V.
+        u_commanded = np.clip(self.u, -self.umax, self.umax)
+        if self.randomise:
+            # Randomise deadzone slightly for robustness (real hardware varies ~0.4-0.6V)
+            deadzone = np.random.uniform(0.4, 0.6)
+            self.u = 0.0 if abs(u_commanded) < deadzone else u_commanded
+        else:
+            self.u = u_commanded
 
         # self.u = [-3,-1,0,1,3][action] #discrate
         # self.u = [-3,3][action] #discrate
@@ -151,11 +155,16 @@ class UnbalancedDisk(gym.Env):
         self.th, self.omega = sol.y[:, -1]
         ##### End do not edit   #####
 
+        # Restore commanded voltage for reward/obs — policy observes what it commanded,
+        # not whether the deadzone silenced it (matches real hardware behaviour)
+        self.u = u_commanded
+
         # if np.random.rand() < 0.005:   # ~once per 200 steps
         #     self.th_ref = np.pi + np.random.uniform(np.deg2rad(-15), np.deg2rad(15))
 
         self._t += self.dt
-        self.th_ref = np.pi + np.deg2rad(15) * np.sign(np.sin(2 * np.pi * 0.2 * self._t))
+        if self._auto_ref:
+            self.th_ref = np.pi + np.deg2rad(15) * np.sign(np.sin(2 * np.pi * 0.2 * self._t))
 
         # accumulate total rotation
         self._th_accumulated += self.th - self.th_before
@@ -186,23 +195,16 @@ class UnbalancedDisk(gym.Env):
         self.th_ref = np.pi + np.random.uniform(np.deg2rad(-15), np.deg2rad(15))
         self._ref_omega = 0.0   # static setpoint -> no reference velocity
 
-        # self.omega0 = 12.7908
-        # self.delta_th = 0
-        # self.gamma = 2.1904
-        # self.Ku = 30.4070s
-        # self.Fc = 9.1626
-        # self.coulomb_omega = 0.001
-
-        # if self.randomise:  # <- enable during training, disable for real deployment
-        #     self.omega0 *= np.random.uniform(0.9, 1.1)  # 10%
-        #     self.gamma *= np.random.uniform(0.8, 1.2)  # 20%
-        #     self.Ku *= np.random.uniform(0.9, 1.1)
-        #     self.Fc *= np.random.uniform(0.8, 1.2)
-        # if self.randomise:
-        #     self.omega0 = 11.339846957335382 * np.random.uniform(0.9, 1.1)
-        #     self.gamma = 1.3328339309394384 * np.random.uniform(0.8, 1.2)
-        #     self.Ku = 28.136158407237073 * np.random.uniform(0.9, 1.1)
-        #     self.Fc = 6.062729509386865 * np.random.uniform(0.8, 1.2)
+        if self.randomise:
+            self.omega0 = self._nom_omega0 * np.random.uniform(0.9, 1.1)
+            self.gamma  = self._nom_gamma  * np.random.uniform(0.8, 1.2)
+            self.Ku     = self._nom_Ku     * np.random.uniform(0.9, 1.1)
+            self.Fc     = self._nom_Fc     * np.random.uniform(0.8, 1.2)
+        else:
+            self.omega0 = self._nom_omega0
+            self.gamma  = self._nom_gamma
+            self.Ku     = self._nom_Ku
+            self.Fc     = self._nom_Fc
 
         return self.get_obs(), {}
 

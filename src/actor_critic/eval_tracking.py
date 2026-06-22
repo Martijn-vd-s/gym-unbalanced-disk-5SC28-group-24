@@ -34,7 +34,7 @@ def ref_schedule(t):
 def main():
     env = UnbalancedDisk_sincos(umax=3.0, dt=DT, randomise=False)
     obs, _ = env.reset()
-    env._random_ref = False                 # WE drive the reference, not the env
+    env._auto_ref = False                   # WE drive the reference, not the env
 
     actor = Actor(obs_dim=5, hidden=256)
     ckpt = torch.load("ppo_best.pth", map_location="cpu")
@@ -61,7 +61,8 @@ def main():
 
             if term or trunc:
                 obs, _ = env.reset()
-                env._random_ref = False
+                env._auto_ref = False
+                env.th_ref = ref_schedule(t)
 
     errs = np.array(errs)
     mask = np.array(t_axis) >= SETTLE_S

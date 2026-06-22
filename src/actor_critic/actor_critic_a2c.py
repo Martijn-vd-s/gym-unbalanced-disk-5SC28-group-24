@@ -221,7 +221,7 @@ class A2CTrainer:
         hidden: int = 128,
         device: str = "cpu",
     ):
-        self.obs_dim = 4
+        self.obs_dim = 5
         self.n_envs = n_envs
         self.n_steps = n_steps
         self.gamma = gamma
@@ -410,6 +410,8 @@ class A2CTrainer:
             )
 
         self.envs.close()
+        np.savez("a2c_training_history.npz",
+                 **{k: np.array(v) for k, v in self.history.items()})
         return self.history
 
     def save(self, path: str = "actor_critic.pth"):
@@ -620,12 +622,12 @@ if __name__ == "__main__":
         env_cls=ENV_CLS,
         env_kwargs=ENV_KWARGS,
         n_envs=8,  # parallel workers via multiprocessing
-        n_steps=64,
+        n_steps=256,
         gamma=0.99,
         lam=0.95,
         lr_actor=1e-4,
         lr_critic=1e-3,
-        ent_coef=0.02,  # higher entropy -> more exploration
+        ent_coef=0.01,  # higher entropy -> more exploration
         total_steps=1_500_000,  # 2M steps for swing-up to emerge
         hidden=256,
     )
