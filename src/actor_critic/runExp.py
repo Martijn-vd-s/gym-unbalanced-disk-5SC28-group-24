@@ -34,8 +34,7 @@ trainer = PPOTrainer(
 
 trainer.load("ppo_best_tracking.pth")
 
-n_steps = 500
-  # Number of steps to run the demo episode for
+n_steps = 500  # Number of steps to run the demo episode for
 
 if __name__ == "__main__":
     env = ENV_CLS(**ENV_KWARGS)

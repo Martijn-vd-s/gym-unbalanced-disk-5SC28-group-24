@@ -83,15 +83,17 @@ class UnbalancedDisk(gym.Env):
 
 
     def _reward(self):
+        # get the error
         err = self.err(self)
 
-        # Wide Gaussian: dense gradient across the full swing-up range
+        # balance reward: Wide Gaussian centered at err=0 (upright), dense gradient across the full swing-up range
         sigma_err = np.pi / 4.0
         r_balance = np.exp(-(err**2) / (2 * sigma_err**2))
 
-        # Swing-up shaping: S-curve target velocity profile
-        A = 12.0
+        # s shape swing-up reward: S-curve target velocity profile
+        A = 12.0  # Peak target velocity
         target_omega = A * np.sin(err / 2.0)
+        # Gaussian reward for being close to the target swing-up velocity, scaled by how far we are from the upright position
         sigma_swing = 2.0
         r_swing = 0.5 * np.exp(-((self.omega - target_omega)**2) / (2 * sigma_swing**2))
 
@@ -100,10 +102,11 @@ class UnbalancedDisk(gym.Env):
         sigma_track = np.deg2rad(7.0)
         r_track = 1.5 * np.exp(-(err**2) / (2 * sigma_track**2))
 
+        # control effort penalty
         u_norm = self.u / self.umax
         u_penalty = 0.07 * u_norm**2 + 0.03 * abs(u_norm)
         prev_u_norm = getattr(self, "_prev_u_norm", u_norm)
-        rate_penalty = 0.10 * (u_norm - prev_u_norm)**2
+        rate_penalty = 0.10 * (u_norm - prev_u_norm)**2  # penalty for switching
         self._prev_u_norm = u_norm
 
         return r_balance + r_swing + r_track  - u_penalty - rate_penalty
