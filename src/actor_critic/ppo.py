@@ -706,7 +706,7 @@ if __name__ == "__main__":
     sys.path.insert(0, os.getcwd())
 
     # import enviorment
-    from actor_critic.results.UnbalancedDisk import UnbalancedDisk_sincos
+    from UnbalancedDisk import UnbalancedDisk_sincos
 
 
     ENV_CLS = UnbalancedDisk_sincos
