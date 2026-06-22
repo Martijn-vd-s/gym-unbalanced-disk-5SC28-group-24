@@ -1,96 +1,151 @@
-from ppo import PPOTrainer
+"""
+Run a trained Q-learning policy on the REAL unbalanced-disk hardware.
+
+Loads a Q-table (``.pkl``) trained in simulation and runs it greedily on the
+physical setup (``UnbalancedDisk_exp``), logging the trajectory and saving
+trajectory + phase-diagram plots plus summary statistics.
+
+Consistency requirement: the discretisation (``Discretize_obs``) here MUST be
+identical to the one in the training notebook, and the env's action map /
+observation range MUST match the training env. Otherwise the loaded Q-table
+indexes the wrong states / voltages and the policy behaves randomly.
+"""
+
 import time
-import matplotlib.pyplot as plt
 import os
-# Force PyTorch to use 1 thread to prevent fighting with Python multiprocessing
-os.environ["OMP_NUM_THREADS"] = "1"
-
+import pickle
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import multiprocessing as mp
-from torch.distributions import Normal
-from tqdm import tqdm
 import matplotlib.pyplot as plt
-import sys
+import gymnasium as gym
+from gymnasium import spaces
 
-from UnbalancedDiskExp import UnbalancedDisk_exp_sincos
+# Q-learning trained on the base 'UnbalancedDisk_exp', NOT the '_sincos' variant.
+from UnbalancedDiskExp import UnbalancedDisk_exp
 
-ENV_CLS = UnbalancedDisk_exp_sincos
 
+class Discretize_obs(gym.Wrapper):
+    """Discretise ``[theta, omega]`` to a state tuple. MUST match the training notebook.
+
+    Angle: NON-uniform grid, fine near the top (phi=0), coarse near the bottom.
+    Velocity: uniform over the env's omega range. ``nvec=[<ignored for angle>, n_omega]``;
+    fineness is set by ``fine_w`` / ``fine_res`` / ``coarse_res``.
+    """
+
+    def __init__(self, env, nvec, fine_w=0.40, fine_res=0.025, coarse_res=0.10):
+        super(Discretize_obs, self).__init__(env)
+        o = env.observation_space
+        self.omega_low = float(o.low[1]); self.omega_high = float(o.high[1])
+        self.n_omega = int(np.array(nvec).flatten()[1])
+        # top-centred, non-uniform angle bin edges (fine near 0, coarse toward +-pi)
+        pos = list(np.arange(0.0, fine_w, fine_res)) + list(np.arange(fine_w, np.pi, coarse_res)) + [np.pi]
+        self.angle_edges = np.array(sorted(set([-e for e in pos] + pos)))
+        self.n_angle = len(self.angle_edges) - 1
+        self.observation_space = gym.spaces.MultiDiscrete([self.n_angle, self.n_omega])
+
+    def discretize(self, observation):
+        """Map continuous ``[theta, omega]`` to integer ``(angle_bin, omega_bin)``."""
+        th = float(observation[0]); om = float(observation[1])
+        phi = (th % (2 * np.pi)) - np.pi                                  # 0 = top
+        a = int(np.clip(np.searchsorted(self.angle_edges, phi, side='right') - 1, 0, self.n_angle - 1))
+        om = np.clip(om, self.omega_low, self.omega_high)
+        b = int(np.clip((om - self.omega_low) / (self.omega_high - self.omega_low) * self.n_omega, 0, self.n_omega - 1))
+        return (a, b)
+
+    def step(self, action):
+        observation, reward, terminated, truncated, info = self.env.step(action)
+        return self.discretize(observation), reward, terminated, truncated, info
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        return self.discretize(obs), info
+
+
+def argmax(a):
+    """Index of the maximum, breaking ties at random."""
+    a = np.array(a)
+    return np.random.choice(np.arange(len(a), dtype=int)[a == np.max(a)])
+
+
+# ==========================================
+# CONFIGURATION
+# ==========================================
+ENV_CLS = UnbalancedDisk_exp
 ENV_KWARGS = dict(umax=3.0, dt=0.025)
 
-trainer = PPOTrainer(
-    env_cls=ENV_CLS,
-    env_kwargs=ENV_KWARGS,
-    n_envs=4,        
-    n_steps=256,      
-    ppo_epochs=10,    # Takes 10 training steps per data batch!
-    lr_actor=1e-4,
-    ent_coef=0.01,    
-    total_steps=500_000, 
-)
-
-trainer.load("ppo_best.pth")
-
-n_steps = 500  # Number of steps to run the demo episode for
+# Trained model to deploy (must be trained with the CURRENT action map / discretisation).
+checkpoint_filename = "Q_learning_DATA_v65.pkl"
+n_steps = 1500  # number of steps for the demo/evaluation
 
 if __name__ == "__main__":
-    env = ENV_CLS(**ENV_KWARGS)
+    # 1. Build the hardware environment
+    env_base = ENV_CLS(**ENV_KWARGS)
+
+    # 2. Wrap with the discretiser (identical settings to training)
+    nvec_angle = 120
+    nvec_rps = 50
+    env = Discretize_obs(env_base, nvec=[nvec_angle, nvec_rps])
+
+    # 3. Load the trained Q-table
+    print(f"Loading Q-matrix from {checkpoint_filename}...")
+    try:
+        with open(checkpoint_filename, "rb") as f:
+            Qmat = pickle.load(f)
+        print(f"Success! Q-matrix loaded with {len(Qmat)} visited states.")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        exit()
+
     obs, _ = env.reset()
-    trainer.actor.eval()
 
     thetas, refs, rewards, omegas, voltages = [], [], [], [], []
 
-    print("\n=== DEMO — close the pygame window or wait for it to finish ===")
+    print("\n=== DEMO - close the pygame window or wait until it finishes ===")
     print(
         f"{'Step':>6}  {'θ (deg)':>9}  {'θ_ref (deg)':>11}  {'err (deg)':>9}  {'ω (rad/s)':>10}  {'V':>6}  {'reward':>8}"
     )
     print("-" * 75)
 
-    with torch.no_grad():
-        for step in range(n_steps):
-            sin_th = obs[0]
-            cos_th = obs[1]
-            omega = obs[2]
-            theta = np.arctan2(sin_th, cos_th)
-            # Default to pi if env doesn't have th_ref explicitly set, needed for tracking later on
-            theta_ref = getattr(env, "th_ref", np.pi) 
+    for step in range(n_steps):
+        # Read the true continuous values straight from the base env for plotting
+        theta = env.unwrapped.th
+        omega = env.unwrapped.omega
+        theta_ref = getattr(env.unwrapped, "th_ref", np.pi)
 
-            err = ((theta - theta_ref + np.pi) % (2 * np.pi)) - np.pi
+        err = ((theta - theta_ref + np.pi) % (2 * np.pi)) - np.pi
 
-            obs_t = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
-            mu = trainer.actor(obs_t)
-            action = mu.item() 
+        # Greedy action: highest Q-value for this discrete state (no exploration)
+        q_values = [Qmat[(obs, i)] for i in range(env.action_space.n)]
+        action = argmax(q_values)
 
-            obs, reward, term, trunc, _ = env.step(action)
+        # Map the discrete action index back to a voltage (for the plots)
+        voltage = env.unwrapped.discrete_action_map[action]
 
-            # Track data for plots
-            thetas.append(theta)
-            refs.append(theta_ref)
-            rewards.append(reward)
-            omegas.append(omega)
-            voltages.append(action)
+        obs, reward, term, trunc, _ = env.step(action)
 
-            if step % 10 == 0:
-                print(
-                    f"{step:>6}  {np.rad2deg(theta):>9.2f}  "
-                    f"{np.rad2deg(theta_ref):>11.2f}  "
-                    f"{np.rad2deg(err):>9.2f}  "
-                    f"{omega:>10.3f}  {action:>+6.3f}  {reward:>8.4f}"
-                )
+        thetas.append(theta)
+        refs.append(theta_ref)
+        rewards.append(reward)
+        omegas.append(omega)
+        voltages.append(voltage)
 
-            env.render()
-            time.sleep(env.dt)
+        if step % 10 == 0:
+            print(
+                f"{step:>6}  {np.rad2deg(theta):>9.2f}  "
+                f"{np.rad2deg(theta_ref):>11.2f}  "
+                f"{np.rad2deg(err):>9.2f}  "
+                f"{omega:>10.3f}  {voltage:>+6.3f}  {reward:>8.4f}"
+            )
 
-            if term or trunc:
-                obs, _ = env.reset()
+        env.render()
+
+        if term or trunc:
+            obs, _ = env.reset()
 
     env.close()
-    trainer.actor.train()
 
-    # time series plots
+    # ==========================================
+    # PLOTS
+    # ==========================================
     t = np.arange(len(thetas)) * ENV_KWARGS.get("dt", 0.025)
 
     fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
@@ -101,7 +156,7 @@ if __name__ == "__main__":
     ax.set_ylabel("Angle [deg]")
     ax.legend()
     ax.grid(alpha=0.3)
-    ax.set_title("Demo Trajectory")
+    ax.set_title("Demo Trajectory (Q-Learning)")
 
     ax = axes[1]
     ax.plot(t, omegas, color="#e07b39", lw=1.2)
@@ -130,25 +185,25 @@ if __name__ == "__main__":
 
     # Phase diagram
     fig, ax = plt.subplots(figsize=(6, 5))
-    
+
     ax.plot(thetas, omegas, color="#7B85FF", lw=1.5, alpha=0.8, label="Trajectory")
     ax.plot(thetas[0], omegas[0], 'go', markersize=8, label="Start")
     ax.plot(thetas[-1], omegas[-1], 'r*', markersize=12, label="End")
-    
+
     target_th = refs[0] if len(refs) > 0 else np.pi
     ax.plot(target_th, 0, 'g^', markersize=10, label="Target (π, 0)")
-    
+
     ax.set_xlabel("Theta (radians)")
     ax.set_ylabel("Omega (rad/s)")
     ax.set_title("Demo Episode: Phase Diagram")
     ax.grid(alpha=0.4, linestyle='--')
     ax.legend(loc="upper right", framealpha=0.9)
-    
+
     plt.tight_layout()
     plt.savefig("demo_phase_diagram.png", dpi=150, bbox_inches="tight")
     plt.close()
 
-    # summary stats
+    # Summary statistics
     errs = np.array([((th - r + np.pi) % (2 * np.pi) - np.pi) for th, r in zip(thetas, refs)])
     print("\nPlots saved -> demo_trajectory.png AND demo_phase_diagram.png")
     print(f"Mean reward : {np.mean(rewards):.4f}")

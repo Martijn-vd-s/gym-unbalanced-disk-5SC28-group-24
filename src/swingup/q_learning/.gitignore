@@ -1,0 +1,9 @@
+# Local virtual environment for the q_learning work only
+.venv/
+
+# Reference package copy (not part of our submission)
+starting_with_full_clean/
+
+# Report drafts (Typst) — keep out of the repo
+*.typ
+refs.bib
