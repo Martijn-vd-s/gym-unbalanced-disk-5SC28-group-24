@@ -32,9 +32,10 @@ trainer = PPOTrainer(
     total_steps=500_000, 
 )
 
-trainer.load("ppo_best.pth")
+trainer.load("ppo_best_tracking.pth")
 
-n_steps = 500  # Number of steps to run the demo episode for
+n_steps = 500
+  # Number of steps to run the demo episode for
 
 if __name__ == "__main__":
     env = ENV_CLS(**ENV_KWARGS)
@@ -93,36 +94,17 @@ if __name__ == "__main__":
     # time series plots
     t = np.arange(len(thetas)) * ENV_KWARGS.get("dt", 0.025)
 
-    fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
+    fig, ax = plt.subplots(figsize=(12, 4))
 
-    ax = axes[0]
-    ax.plot(t, np.rad2deg(refs), "--", color="#888", lw=1.5, label="θ_ref")
-    ax.plot(t, np.rad2deg(thetas), color="#4c8cbf", lw=1.5, label="θ actual")
+    thetas_plot = np.unwrap(thetas)
+    refs_plot = np.unwrap(refs)
+    ax.plot(t, np.rad2deg(refs_plot), "--", color="#888", lw=1.5, label="θ_ref")
+    ax.plot(t, np.rad2deg(thetas_plot), color="#4c8cbf", lw=1.5, label="θ actual")
     ax.set_ylabel("Angle [deg]")
+    ax.set_xlabel("Time [s]")
     ax.legend()
     ax.grid(alpha=0.3)
     ax.set_title("Demo Trajectory")
-
-    ax = axes[1]
-    ax.plot(t, omegas, color="#e07b39", lw=1.2)
-    ax.axhline(0, color="#888", lw=0.8, linestyle="--")
-    ax.set_ylabel("ω [rad/s]")
-    ax.grid(alpha=0.3)
-
-    ax = axes[2]
-    ax.plot(t, voltages, color="#8172b2", lw=1.2)
-    ax.axhline(3.0, color="#888", lw=0.8, linestyle="--")
-    ax.axhline(-3.0, color="#888", lw=0.8, linestyle="--")
-    ax.axhline(0.0, color="#888", lw=0.8, linestyle=":")
-    ax.set_ylabel("Voltage [V]")
-    ax.set_ylim(-3.5, 3.5)
-    ax.grid(alpha=0.3)
-
-    ax = axes[3]
-    ax.plot(t, rewards, color="#5ba85e", lw=1.2)
-    ax.set_ylabel("Reward")
-    ax.set_xlabel("Time [s]")
-    ax.grid(alpha=0.3)
 
     plt.tight_layout()
     plt.savefig("demo_trajectory.png", dpi=150, bbox_inches="tight")

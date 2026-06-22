@@ -430,7 +430,7 @@ if __name__ == "__main__":
     sys.path.insert(0, os.getcwd())
     
     # import enviorment 
-    from UnbalancedDisk import UnbalancedDisk_sincos
+    from actor_critic.results.UnbalancedDisk import UnbalancedDisk_sincos
     ENV_CLS = UnbalancedDisk_sincos
 
     ENV_KWARGS = dict(umax=3.0, dt=0.025, randomise=True)
