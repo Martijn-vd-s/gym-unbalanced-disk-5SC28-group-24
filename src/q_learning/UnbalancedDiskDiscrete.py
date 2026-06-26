@@ -59,6 +59,7 @@ class UnbalancedDisk(gym.Env):
         self.num_actions = 12
         self.action_space = spaces.Discrete(self.num_actions)
         self.discrete_action_map = [-3, -2.2, -1.5, -0.9, -0.5, -0.2, 0.2, 0.5, 0.9, 1.5, 2.2, 3]
+        # self.discrete_action_map = [-3, -1.5, -0.5, 0.5, 1.5, 3] #RBF test
 
         # --- Observation: [theta, omega], clipped to this range by the wrapper ---
         low = [-(5 / 4) * np.pi, -5]
@@ -305,7 +306,7 @@ class UnbalancedDisk_sincos(UnbalancedDisk):
 
     def get_obs(self):
         self.th_noise = self.th + np.random.normal(loc=0, scale=0.001)       # do not edit
-        self.omega_noise = self.omega + np.random.normal(loc=0, scale=0.01)  # do not edit
+        self.omega_noise = self.omega + np.random.normal(loc=0, scale=1.0)  # do not edit
         return np.array([np.sin(self.th_noise), np.cos(self.th_noise), self.omega_noise])
 
 
