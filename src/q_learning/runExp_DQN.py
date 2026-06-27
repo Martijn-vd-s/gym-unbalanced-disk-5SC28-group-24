@@ -12,14 +12,14 @@ from UnbalancedDiskExp import UnbalancedDisk_exp
 
 # ===================== MUST MATCH TRAINING =====================
 # >>> Paste the 6 voltages from UnbalancedDiskDiscrete.py, same order. <
-TRAIN_ACTION_MAP = [-3.0, -1.0, -0.2, 0.2, 1.0, 3.0]   # <-- EDIT THIS
+TRAIN_ACTION_MAP = [-3, -2.2, -1.5, -0.9, -0.5, -0.2, 0.2, 0.5, 0.9, 1.5, 2.2, 3]   # <-- EDIT THIS
 
 # Encoding flags. These MUST equal what encode_obs() used during training.
 # Your current checkpoint trained with OFFSET = 0.0. Only change if you retrain.
 OMEGA_OFFSET = 0.0     # set to 1.874 ONLY if you retrain with it on
 OMEGA_SCALE  = 8.0
 
-CHECKPOINT = "DQN_swingup_v1.pt"
+CHECKPOINT = "DQN_swingup_v2.pt"
 ENV_KWARGS = dict(umax=3.0, dt=0.025)
 N_STEPS    = 1500
 TOP_TOL    = 0.30
